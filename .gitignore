@@ -34,6 +34,9 @@ next-env.d.ts
 *.db
 *.db-journal
 
+# prisma generated
+generated/
+
 # IDE
 .idea/
 .vscode/
