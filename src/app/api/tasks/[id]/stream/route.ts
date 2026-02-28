@@ -18,21 +18,48 @@ export async function GET(
     return new Response("Task not found", { status: 404 });
   }
 
+  // Bug 1: If the task has no assigned agent, return a simple stream
+  // with the current status and close immediately.
+  if (!task.assignedAgentId) {
+    const encoder = new TextEncoder();
+    const simpleStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(`event: status_change\ndata: ${JSON.stringify({ status: task.status })}\n\n`)
+        );
+        controller.close();
+      },
+    });
+    return new Response(simpleStream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  }
+
   // Capture non-null reference for use inside closures
   const validTask = task;
   const scenario = getMockScenario();
   let eventIndex = 0;
   let waitingForIntervention = false;
+  let cancelled = false;
 
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
 
       function send(event: string, data: unknown) {
+        if (cancelled) return;
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       }
 
       const heartbeatInterval = setInterval(() => {
+        if (cancelled) {
+          clearInterval(heartbeatInterval);
+          return;
+        }
         try {
           send("heartbeat", { timestamp: Date.now() });
         } catch {
@@ -41,9 +68,14 @@ export async function GET(
       }, 15000);
 
       async function processNextEvent() {
+        if (cancelled) {
+          clearInterval(heartbeatInterval);
+          return;
+        }
+
         if (eventIndex >= scenario.length) {
           clearInterval(heartbeatInterval);
-          controller.close();
+          if (!cancelled) controller.close();
           return;
         }
 
@@ -76,6 +108,10 @@ export async function GET(
 
           // Poll for intervention resolution
           const pollInterval = setInterval(async () => {
+            if (cancelled) {
+              clearInterval(pollInterval);
+              return;
+            }
             try {
               const updated = await prisma.interventionRequest.findUnique({
                 where: { id: intervention.id },
@@ -95,6 +131,11 @@ export async function GET(
         }
 
         await new Promise((resolve) => setTimeout(resolve, event.delay));
+
+        if (cancelled) {
+          clearInterval(heartbeatInterval);
+          return;
+        }
 
         if (event.type === "status_change") {
           await prisma.task.update({
@@ -130,6 +171,9 @@ export async function GET(
       }
 
       processNextEvent();
+    },
+    cancel() {
+      cancelled = true;
     },
   });
 

@@ -56,48 +56,53 @@ export function useTaskStream(taskId: string | null) {
           intervention:
             task.interventions?.find((i: InterventionRequest) => !i.resolvedAt) ?? null,
         }));
+
+        // Only connect SSE for actively processing tasks
+        if (['thinking', 'acting', 'blocked'].includes(task.status)) {
+          const es = new EventSource(`/api/tasks/${taskId}/stream`);
+          eventSourceRef.current = es;
+
+          es.onopen = () => {
+            setState((s) => ({ ...s, connected: true }));
+          };
+
+          es.addEventListener("status_change", (e) => {
+            const data = JSON.parse(e.data);
+            setState((s) => ({ ...s, status: data.status }));
+          });
+
+          es.addEventListener("thought", (e) => {
+            const thought = JSON.parse(e.data);
+            setState((s) => ({
+              ...s,
+              thoughts: [...s.thoughts, thought],
+            }));
+          });
+
+          es.addEventListener("intervention", (e) => {
+            const intervention = JSON.parse(e.data);
+            setState((s) => ({ ...s, intervention }));
+          });
+
+          es.addEventListener("result", (e) => {
+            const result = JSON.parse(e.data);
+            setState((s) => ({
+              ...s,
+              results: [...s.results, result],
+            }));
+          });
+
+          es.onerror = () => {
+            setState((s) => ({ ...s, connected: false }));
+          };
+        }
       });
 
-    // Connect SSE stream
-    const es = new EventSource(`/api/tasks/${taskId}/stream`);
-    eventSourceRef.current = es;
-
-    es.onopen = () => {
-      setState((s) => ({ ...s, connected: true }));
-    };
-
-    es.addEventListener("status_change", (e) => {
-      const data = JSON.parse(e.data);
-      setState((s) => ({ ...s, status: data.status }));
-    });
-
-    es.addEventListener("thought", (e) => {
-      const thought = JSON.parse(e.data);
-      setState((s) => ({
-        ...s,
-        thoughts: [...s.thoughts, thought],
-      }));
-    });
-
-    es.addEventListener("intervention", (e) => {
-      const intervention = JSON.parse(e.data);
-      setState((s) => ({ ...s, intervention }));
-    });
-
-    es.addEventListener("result", (e) => {
-      const result = JSON.parse(e.data);
-      setState((s) => ({
-        ...s,
-        results: [...s.results, result],
-      }));
-    });
-
-    es.onerror = () => {
-      setState((s) => ({ ...s, connected: false }));
-    };
-
     return () => {
-      es.close();
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
     };
   }, [taskId, disconnect]);
 
