@@ -27,70 +27,13 @@ async function main() {
     data: { name: "财务自动化", icon: "💰", description: "财务流程自动化" },
   });
 
-  // Create agents
-  const csAgent = await prisma.agent.create({
-    data: {
-      name: "CS-Agent",
-      description: "客服专员，擅长处理客户咨询、退款和投诉",
-      capabilities: JSON.stringify(["查询订单", "退款处理", "邮件回复", "客户信息查询"]),
-      status: "busy",
-      lastHeartbeat: new Date(),
-    },
-  });
-  const personalAgent = await prisma.agent.create({
-    data: {
-      name: "Life-Agent",
-      description: "个人助理，管理日程、提醒和日常事务",
-      capabilities: JSON.stringify(["日历管理", "提醒设置", "信息搜索", "文件整理"]),
-      status: "idle",
-      lastHeartbeat: new Date(),
-    },
-  });
-  const finAgent = await prisma.agent.create({
-    data: {
-      name: "Fin-Agent",
-      description: "财务助手，处理报表、对账和财务分析",
-      capabilities: JSON.stringify(["报表生成", "数据分析", "对账核算", "预算管理"]),
-      status: "idle",
-      lastHeartbeat: new Date(),
-    },
-  });
-
-  // Create tasks
+  // Create sample tasks (unassigned — agents come from OpenClaw Gateway)
   await prisma.task.create({
     data: {
-      title: "处理张三的退款请求",
-      description: "客户要求退还上月订单 #20241201 的费用",
-      status: "acting",
+      title: "处理客户咨询邮件",
+      description: "回复今日未处理的客户问题",
+      status: "todo",
       workspaceId: csWorkspace.id,
-      assignedAgentId: csAgent.id,
-    },
-  });
-  await prisma.task.create({
-    data: {
-      title: "回复李四的咨询邮件",
-      description: "关于产品升级方案的问题",
-      status: "thinking",
-      workspaceId: csWorkspace.id,
-      assignedAgentId: csAgent.id,
-    },
-  });
-  await prisma.task.create({
-    data: {
-      title: "VVIP 客户退款超期审批",
-      description: "政策显示已过退款期，但该用户是 VVIP",
-      status: "blocked",
-      workspaceId: csWorkspace.id,
-      assignedAgentId: csAgent.id,
-    },
-  });
-  await prisma.task.create({
-    data: {
-      title: "更新客服话术模板",
-      description: "根据最新产品线调整标准回复模板",
-      status: "done",
-      workspaceId: csWorkspace.id,
-      assignedAgentId: csAgent.id,
     },
   });
   await prisma.task.create({
