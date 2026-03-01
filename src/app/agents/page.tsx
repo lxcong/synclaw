@@ -1,6 +1,5 @@
-import { prisma } from "@/lib/db";
 import { gatewayClient } from "@/lib/gateway-client";
-import { syncAgentsFromGateway } from "@/lib/agent-sync";
+import { syncAgentsFromGateway, getAgentsWithInferredStatus } from "@/lib/agent-sync";
 import { AgentCard } from "@/components/agent-card";
 import type { Agent } from "@/types";
 
@@ -14,11 +13,14 @@ export default async function AgentsPage() {
         _count: { tasks: number };
       })[];
     } catch {
-      // Fallback to cached DB data
-      agentList = await fallbackFromDB();
+      agentList = (await getAgentsWithInferredStatus()) as (Agent & {
+        _count: { tasks: number };
+      })[];
     }
   } else {
-    agentList = await fallbackFromDB();
+    agentList = (await getAgentsWithInferredStatus()) as (Agent & {
+      _count: { tasks: number };
+    })[];
   }
 
   return (
@@ -38,15 +40,4 @@ export default async function AgentsPage() {
       </div>
     </div>
   );
-}
-
-async function fallbackFromDB() {
-  const agents = await prisma.agent.findMany({
-    include: { _count: { select: { tasks: true } } },
-    orderBy: { name: "asc" },
-  });
-  return agents.map((a) => ({
-    ...a,
-    capabilities: JSON.parse(a.capabilities) as string[],
-  })) as (Agent & { _count: { tasks: number } })[];
 }

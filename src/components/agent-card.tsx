@@ -48,22 +48,24 @@ export function AgentCard({ agent }: Props) {
         </div>
       </div>
 
-      <div className="mt-3">
-        <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>
-          能力
-        </p>
-        <div className="flex flex-wrap gap-1">
-          {agent.capabilities.map((cap) => (
-            <span
-              key={cap}
-              className="text-xs px-2 py-0.5 rounded"
-              style={{ background: "var(--background)", color: "var(--muted-foreground)" }}
-            >
-              {cap}
-            </span>
-          ))}
+      {agent.capabilities.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>
+            能力
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {agent.capabilities.map((cap) => (
+              <span
+                key={cap}
+                className="text-xs px-2 py-0.5 rounded"
+                style={{ background: "var(--background)", color: "var(--muted-foreground)" }}
+              >
+                {cap}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="mt-3 flex items-center justify-between text-xs" style={{ color: "var(--muted)" }}>
         <span>任务数: {agent._count?.tasks ?? 0}</span>

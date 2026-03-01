@@ -135,7 +135,14 @@ export async function syncAgentsFromGateway() {
     }
   }
 
-  // Return agents from DB with task counts and inferred status
+  return getAgentsWithInferredStatus();
+}
+
+/**
+ * Get agents from local DB with task counts and status inferred from active tasks.
+ * Shared by both sync and fallback paths.
+ */
+export async function getAgentsWithInferredStatus() {
   const agents = await prisma.agent.findMany({
     include: {
       _count: {
@@ -145,8 +152,7 @@ export async function syncAgentsFromGateway() {
     orderBy: { name: "asc" },
   });
 
-  // Infer status from active tasks
-  const agentsWithStatus = await Promise.all(
+  return Promise.all(
     agents.map(async (agent) => {
       const activeTasks = await prisma.task.count({
         where: {
@@ -161,6 +167,4 @@ export async function syncAgentsFromGateway() {
       };
     })
   );
-
-  return agentsWithStatus;
 }
