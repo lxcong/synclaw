@@ -18,7 +18,7 @@ export interface RunSubscriber {
   onError: (runId: string, error: { code: number; message: string }) => void;
 }
 
-/** Frame sent immediately after WebSocket open to negotiate protocol. */
+/** ConnectParams sent as params of the "connect" RPC request. */
 interface ConnectParams {
   minProtocol: number;
   maxProtocol: number;
@@ -31,6 +31,7 @@ interface ConnectParams {
   };
   role: string;
   scopes: string[];
+  caps: string[];
   auth?: { token: string };
 }
 
@@ -55,15 +56,6 @@ interface EventFrame {
   payload?: Record<string, unknown>;
 }
 
-interface HelloOkFrame {
-  type: "hello-ok";
-  protocol: number;
-  server: Record<string, unknown>;
-  features: Record<string, unknown>;
-}
-
-type IncomingFrame = ResponseFrame | EventFrame | HelloOkFrame;
-
 interface PendingRequest {
   resolve: (payload: unknown) => void;
   reject: (err: Error) => void;
@@ -74,10 +66,12 @@ interface PendingRequest {
 // GatewayClient
 // ---------------------------------------------------------------------------
 
+const PROTOCOL_VERSION = 3;
 const DEFAULT_URL = "ws://localhost:18789";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_BACKOFF_MS = 30_000;
 const PING_INTERVAL_MS = 30_000;
+const CONNECT_CHALLENGE_TIMEOUT_MS = 5_000;
 
 export class GatewayClient {
   private ws: WebSocket | null = null;
@@ -89,10 +83,15 @@ export class GatewayClient {
   private intentionalClose = false;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** ID of the pending "connect" RPC request during handshake. */
+  private connectRequestId: string | null = null;
+  /** Timer for the connect challenge timeout. */
+  private connectChallengeTimer: ReturnType<typeof setTimeout> | null = null;
+
   private pendingRequests = new Map<string, PendingRequest>();
   private subscribers = new Map<string, RunSubscriber>();
 
-  /** Resolves once the hello-ok handshake succeeds for the current connection. */
+  /** Resolves once the connect handshake succeeds for the current connection. */
   private helloPromise: Promise<void> | null = null;
   private helloResolve: (() => void) | null = null;
   private helloReject: ((err: Error) => void) | null = null;
@@ -105,7 +104,7 @@ export class GatewayClient {
   // Public API
   // -----------------------------------------------------------------------
 
-  /** Open the WebSocket and complete the hello handshake. */
+  /** Open the WebSocket and complete the connect handshake. */
   async connect(): Promise<void> {
     if (this.connected) return;
     if (this.connecting && this.helloPromise) return this.helloPromise;
@@ -117,6 +116,7 @@ export class GatewayClient {
   disconnect(): void {
     this.intentionalClose = true;
     this._stopPing();
+    this._clearConnectChallengeTimer();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -173,7 +173,7 @@ export class GatewayClient {
   }
 
   // -----------------------------------------------------------------------
-  // Internal
+  // Internal — Connection & Handshake
   // -----------------------------------------------------------------------
 
   private _connect(): Promise<void> {
@@ -187,7 +187,8 @@ export class GatewayClient {
     this.ws = new WebSocket(this.url);
 
     this.ws.on("open", () => {
-      this._sendConnectParams();
+      // Don't send anything yet — wait for the connect.challenge event.
+      this._queueConnect();
     });
 
     this.ws.on("message", (raw: WebSocket.Data) => {
@@ -198,6 +199,7 @@ export class GatewayClient {
       this.connected = false;
       this.connecting = false;
       this._stopPing();
+      this._clearConnectChallengeTimer();
       if (!this.intentionalClose) {
         this._scheduleReconnect();
       }
@@ -216,19 +218,54 @@ export class GatewayClient {
     return this.helloPromise;
   }
 
-  private _sendConnectParams(): void {
+  /**
+   * Start a timer waiting for the connect.challenge event from the Gateway.
+   * If the challenge doesn't arrive in time, close the connection.
+   */
+  private _queueConnect(): void {
+    this.connectRequestId = null;
+    this._clearConnectChallengeTimer();
+
+    this.connectChallengeTimer = setTimeout(() => {
+      this.connectChallengeTimer = null;
+      if (this.connectRequestId || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      console.error("[GatewayClient] Connect challenge timeout");
+      if (this.helloReject) {
+        this.helloReject(new Error("Connect challenge timeout"));
+        this.helloResolve = null;
+        this.helloReject = null;
+      }
+      this.ws?.close(1008, "connect challenge timeout");
+    }, CONNECT_CHALLENGE_TIMEOUT_MS);
+  }
+
+  /**
+   * Send the "connect" RPC request after receiving the challenge nonce.
+   * The Gateway will respond with hello-ok payload on success.
+   */
+  private _sendConnect(nonce: string): void {
+    if (this.connectRequestId) return; // Already sent
+
+    this._clearConnectChallengeTimer();
+
+    const id = crypto.randomUUID();
+    this.connectRequestId = id;
+
     const params: ConnectParams = {
-      minProtocol: 1,
-      maxProtocol: 1,
+      minProtocol: PROTOCOL_VERSION,
+      maxProtocol: PROTOCOL_VERSION,
       client: {
         id: "gateway-client",
         displayName: "SyncClaw",
         version: "0.1.0",
-        platform: "node",
+        platform: process.platform,
         mode: "backend",
       },
       role: "operator",
       scopes: ["admin"],
+      caps: [],
     };
 
     const token = process.env.OPENCLAW_GATEWAY_TOKEN;
@@ -236,8 +273,20 @@ export class GatewayClient {
       params.auth = { token };
     }
 
-    this._send(params);
+    const frame: RequestFrame = { type: "req", id, method: "connect", params };
+    this._send(frame);
   }
+
+  private _clearConnectChallengeTimer(): void {
+    if (this.connectChallengeTimer) {
+      clearTimeout(this.connectChallengeTimer);
+      this.connectChallengeTimer = null;
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Internal — Message Handling
+  // -----------------------------------------------------------------------
 
   private _send(data: unknown): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -247,31 +296,73 @@ export class GatewayClient {
   }
 
   private _handleMessage(raw: WebSocket.Data): void {
-    let frame: IncomingFrame;
+    let parsed: Record<string, unknown>;
     try {
-      frame = JSON.parse(String(raw)) as IncomingFrame;
+      parsed = JSON.parse(String(raw)) as Record<string, unknown>;
     } catch {
-      console.error("[GatewayClient] Failed to parse incoming frame:", String(raw));
+      console.error("[GatewayClient] Failed to parse incoming frame");
       return;
     }
 
-    switch (frame.type) {
-      case "hello-ok":
-        this._onHelloOk();
-        break;
-      case "res":
-        this._onResponse(frame);
-        break;
-      case "event":
-        this._onEvent(frame);
-        break;
-      default:
-        // Unknown frame type — ignore gracefully.
-        break;
+    // Handle event frames (including connect.challenge during handshake)
+    if (parsed.type === "event") {
+      const eventFrame = parsed as unknown as EventFrame;
+
+      // connect.challenge must be handled before anything else
+      if (eventFrame.event === "connect.challenge") {
+        const payload = eventFrame.payload as Record<string, unknown> | undefined;
+        const nonce = payload && typeof payload.nonce === "string" ? payload.nonce : null;
+
+        if (!nonce || nonce.trim().length === 0) {
+          console.error("[GatewayClient] Connect challenge missing nonce");
+          if (this.helloReject) {
+            this.helloReject(new Error("Connect challenge missing nonce"));
+            this.helloResolve = null;
+            this.helloReject = null;
+          }
+          this.ws?.close(1008, "connect challenge missing nonce");
+          return;
+        }
+
+        this._sendConnect(nonce.trim());
+        return;
+      }
+
+      this._onEvent(eventFrame);
+      return;
     }
+
+    // Handle response frames
+    if (parsed.type === "res") {
+      const responseFrame = parsed as unknown as ResponseFrame;
+
+      // Check if this is the connect handshake response
+      if (responseFrame.id === this.connectRequestId) {
+        this.connectRequestId = null;
+
+        if (responseFrame.ok) {
+          this._onConnected();
+        } else {
+          const errorMsg = responseFrame.error?.message ?? "Connect rejected";
+          console.error("[GatewayClient] Connect handshake failed:", errorMsg);
+          if (this.helloReject) {
+            this.helloReject(new Error(errorMsg));
+            this.helloResolve = null;
+            this.helloReject = null;
+          }
+        }
+        return;
+      }
+
+      this._onResponse(responseFrame);
+      return;
+    }
+
+    // Unknown frame type — ignore gracefully.
   }
 
-  private _onHelloOk(): void {
+  /** Called when the connect handshake succeeds. */
+  private _onConnected(): void {
     this.connected = true;
     this.connecting = false;
     this.reconnectAttempt = 0;
