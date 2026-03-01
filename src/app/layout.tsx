@@ -1,3 +1,4 @@
+import "@/lib/gateway-init";
 import type { Metadata } from "next";
 import "./globals.css";
 
