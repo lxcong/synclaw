@@ -27,9 +27,11 @@ export interface Agent {
   description: string;
   capabilities: string[];
   status: AgentStatus;
+  emoji?: string | null;
   avatarUrl?: string | null;
   lastHeartbeat?: Date | null;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Task {
