@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  icon        String   @default("📁")
+  description String?
+  tasks       Task[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Agent {
+  id            String         @id @default(cuid())
+  name          String
+  description   String
+  capabilities  String         // JSON array as string
+  status        String         @default("idle") // idle | busy | offline | error
+  avatarUrl     String?
+  lastHeartbeat DateTime?
+  tasks         Task[]
+  thoughts      ThoughtEntry[]
+  createdAt     DateTime       @default(now())
+}
+
+model Task {
+  id              String              @id @default(cuid())
+  title           String
+  description     String?
+  status          String              @default("todo") // todo | thinking | acting | blocked | done
+  workspace       Workspace           @relation(fields: [workspaceId], references: [id])
+  workspaceId     String
+  assignedAgent   Agent?              @relation(fields: [assignedAgentId], references: [id])
+  assignedAgentId String?
+  thoughts        ThoughtEntry[]
+  results         TaskResult[]
+  interventions   InterventionRequest[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+model ThoughtEntry {
+  id        String   @id @default(cuid())
+  task      Task     @relation(fields: [taskId], references: [id])
+  taskId    String
+  agent     Agent    @relation(fields: [agentId], references: [id])
+  agentId   String
+  type      String   // thinking | tool_use | result | error
+  content   String
+  toolName  String?
+  timestamp DateTime @default(now())
+}
+
+model TaskResult {
+  id        String   @id @default(cuid())
+  task      Task     @relation(fields: [taskId], references: [id])
+  taskId    String
+  type      String   // text | file | link | email_draft
+  title     String
+  content   String
+  url       String?
+  createdAt DateTime @default(now())
+}
+
+model InterventionRequest {
+  id         String    @id @default(cuid())
+  task       Task      @relation(fields: [taskId], references: [id])
+  taskId     String
+  question   String
+  options    String?   // JSON array as string
+  response   String?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
