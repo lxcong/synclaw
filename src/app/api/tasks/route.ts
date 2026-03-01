@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
       const result = (await gatewayClient.request("agent", {
         message,
-        sessionKey: `sk:global:syncclaw:${task.id}`,
+        sessionKey: `agent:${task.assignedAgentId}:syncclaw:${task.id}`,
         idempotencyKey: task.id,
         agentId: task.assignedAgentId,
       })) as { runId: string; status: string };
