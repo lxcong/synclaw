@@ -63,6 +63,8 @@ export async function GET(
   const agentId = task.assignedAgentId;
   let cancelled = false;
 
+  let cleanupFn: (() => void) | null = null;
+
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
@@ -94,6 +96,9 @@ export async function GET(
         clearInterval(heartbeatInterval);
         gatewayClient.unsubscribe(runId);
       }
+
+      // Expose cleanup for cancel() to use
+      cleanupFn = cleanup;
 
       function closeStream() {
         cleanup();
@@ -329,8 +334,11 @@ export async function GET(
     },
 
     cancel() {
-      cancelled = true;
-      gatewayClient.unsubscribe(runId);
+      if (cleanupFn) cleanupFn();
+      else {
+        cancelled = true;
+        gatewayClient.unsubscribe(runId);
+      }
     },
   });
 

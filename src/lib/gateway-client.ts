@@ -77,6 +77,7 @@ interface PendingRequest {
 const DEFAULT_URL = "ws://localhost:18789";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_BACKOFF_MS = 30_000;
+const PING_INTERVAL_MS = 30_000;
 
 export class GatewayClient {
   private ws: WebSocket | null = null;
@@ -86,6 +87,7 @@ export class GatewayClient {
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
 
   private pendingRequests = new Map<string, PendingRequest>();
   private subscribers = new Map<string, RunSubscriber>();
@@ -114,6 +116,7 @@ export class GatewayClient {
   /** Gracefully close the connection and stop reconnecting. */
   disconnect(): void {
     this.intentionalClose = true;
+    this._stopPing();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -194,6 +197,7 @@ export class GatewayClient {
     this.ws.on("close", () => {
       this.connected = false;
       this.connecting = false;
+      this._stopPing();
       if (!this.intentionalClose) {
         this._scheduleReconnect();
       }
@@ -236,9 +240,10 @@ export class GatewayClient {
   }
 
   private _send(data: unknown): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error("WebSocket is not open");
     }
+    this.ws.send(JSON.stringify(data));
   }
 
   private _handleMessage(raw: WebSocket.Data): void {
@@ -270,10 +275,27 @@ export class GatewayClient {
     this.connected = true;
     this.connecting = false;
     this.reconnectAttempt = 0;
+    this._startPing();
     if (this.helloResolve) {
       this.helloResolve();
       this.helloResolve = null;
       this.helloReject = null;
+    }
+  }
+
+  private _startPing(): void {
+    this._stopPing();
+    this.pingTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.ping();
+      }
+    }, PING_INTERVAL_MS);
+  }
+
+  private _stopPing(): void {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
     }
   }
 
