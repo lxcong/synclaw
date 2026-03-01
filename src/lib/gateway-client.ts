@@ -211,7 +211,7 @@ export class GatewayClient {
   private connectChallengeTimer: ReturnType<typeof setTimeout> | null = null;
 
   private pendingRequests = new Map<string, PendingRequest>();
-  private subscribers = new Map<string, RunSubscriber>();
+  private subscribers = new Map<string, RunSubscriber[]>();
 
   /** Ed25519 device identity for Gateway authentication. */
   private deviceIdentity: DeviceIdentity;
@@ -283,14 +283,27 @@ export class GatewayClient {
     });
   }
 
-  /** Subscribe to agent events for a specific runId. */
+  /** Subscribe to agent events for a specific runId. Multiple subscribers are supported. */
   subscribe(runId: string, subscriber: RunSubscriber): void {
-    this.subscribers.set(runId, subscriber);
+    const existing = this.subscribers.get(runId);
+    if (existing) {
+      existing.push(subscriber);
+    } else {
+      this.subscribers.set(runId, [subscriber]);
+    }
   }
 
-  /** Remove the subscriber for a given runId. */
-  unsubscribe(runId: string): void {
-    this.subscribers.delete(runId);
+  /** Remove a specific subscriber for a given runId. */
+  unsubscribe(runId: string, subscriber?: RunSubscriber): void {
+    if (!subscriber) {
+      this.subscribers.delete(runId);
+      return;
+    }
+    const list = this.subscribers.get(runId);
+    if (!list) return;
+    const idx = list.indexOf(subscriber);
+    if (idx !== -1) list.splice(idx, 1);
+    if (list.length === 0) this.subscribers.delete(runId);
   }
 
   /** Whether the client has an active, handshake-completed connection. */
@@ -561,20 +574,22 @@ export class GatewayClient {
       }
     }
 
-    // Notify subscriber on terminal agent run responses (runs regardless of
+    // Notify subscribers on terminal agent run responses (runs regardless of
     // pending state so the second "final" response from "agent" requests
     // triggers onComplete/onError even after the pending entry was consumed).
     const payload = frame.payload as Record<string, unknown> | undefined;
     if (payload && typeof payload.runId === "string" && payload.status !== "accepted") {
-      const subscriber = this.subscribers.get(payload.runId);
-      if (subscriber) {
-        if (frame.ok) {
-          subscriber.onComplete(payload.runId, payload);
-        } else {
-          subscriber.onError(
-            payload.runId,
-            frame.error ?? { code: -1, message: "Unknown error" }
-          );
+      const subs = this.subscribers.get(payload.runId);
+      if (subs) {
+        for (const sub of [...subs]) {
+          if (frame.ok) {
+            sub.onComplete(payload.runId, payload);
+          } else {
+            sub.onError(
+              payload.runId,
+              frame.error ?? { code: -1, message: "Unknown error" }
+            );
+          }
         }
       }
     }
@@ -586,16 +601,20 @@ export class GatewayClient {
     const runId = frame.payload.runId as string | undefined;
     if (!runId) return;
 
-    const subscriber = this.subscribers.get(runId);
-    if (!subscriber) return;
+    const subs = this.subscribers.get(runId);
+    if (!subs) return;
 
-    subscriber.onEvent({
+    const event: AgentEvent = {
       runId,
       seq: (frame.payload.seq as number) ?? 0,
       stream: (frame.payload.stream as string) ?? "unknown",
       ts: (frame.payload.ts as number) ?? Date.now(),
       data: (frame.payload.data as Record<string, unknown>) ?? {},
-    });
+    };
+
+    for (const sub of [...subs]) {
+      sub.onEvent(event);
+    }
   }
 
   // -----------------------------------------------------------------------

@@ -94,7 +94,7 @@ export async function GET(
       function cleanup() {
         cancelled = true;
         clearInterval(heartbeatInterval);
-        gatewayClient.unsubscribe(runId);
+        gatewayClient.unsubscribe(runId, subscriber);
       }
 
       // Expose cleanup for cancel() to use
@@ -337,7 +337,6 @@ export async function GET(
       if (cleanupFn) cleanupFn();
       else {
         cancelled = true;
-        gatewayClient.unsubscribe(runId);
       }
     },
   });

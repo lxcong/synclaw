@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { gatewayClient } from "@/lib/gateway-client";
+import { trackTaskRun } from "@/lib/task-run-tracker";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -33,6 +34,9 @@ export async function POST(request: Request) {
         data: { runId: result.runId },
         include: { assignedAgent: true },
       });
+
+      // Register background subscriber so DB is updated regardless of SSE stream
+      trackTaskRun(task.id, result.runId, task.assignedAgentId!);
     } catch (err) {
       console.error("[tasks/POST] Gateway dispatch failed, falling back to todo:", err);
       task = await prisma.task.update({
