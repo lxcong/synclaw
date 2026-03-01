@@ -27,6 +27,7 @@ export async function POST(request: Request) {
         message,
         sessionKey: `sk:global:syncclaw:${task.id}`,
         idempotencyKey: task.id,
+        agentId: task.assignedAgentId,
       })) as { runId: string; status: string };
 
       task = await prisma.task.update({
