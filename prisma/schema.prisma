@@ -18,16 +18,18 @@ model Workspace {
 }
 
 model Agent {
-  id            String         @id @default(cuid())
+  id            String         @id
   name          String
-  description   String
-  capabilities  String         // JSON array as string
+  description   String         @default("")
+  capabilities  String         @default("[]") // JSON array as string
   status        String         @default("idle") // idle | busy | offline | error
+  emoji         String?
   avatarUrl     String?
   lastHeartbeat DateTime?
   tasks         Task[]
   thoughts      ThoughtEntry[]
   createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model Task {

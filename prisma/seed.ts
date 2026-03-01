@@ -27,9 +27,10 @@ async function main() {
     data: { name: "财务自动化", icon: "💰", description: "财务流程自动化" },
   });
 
-  // Create agents
+  // Create test agents (these serve as fallback when Gateway is not connected)
   const csAgent = await prisma.agent.create({
     data: {
+      id: "seed-cs-agent",
       name: "CS-Agent",
       description: "客服专员，擅长处理客户咨询、退款和投诉",
       capabilities: JSON.stringify(["查询订单", "退款处理", "邮件回复", "客户信息查询"]),
@@ -37,8 +38,9 @@ async function main() {
       lastHeartbeat: new Date(),
     },
   });
-  const personalAgent = await prisma.agent.create({
+  await prisma.agent.create({
     data: {
+      id: "seed-life-agent",
       name: "Life-Agent",
       description: "个人助理，管理日程、提醒和日常事务",
       capabilities: JSON.stringify(["日历管理", "提醒设置", "信息搜索", "文件整理"]),
@@ -46,8 +48,9 @@ async function main() {
       lastHeartbeat: new Date(),
     },
   });
-  const finAgent = await prisma.agent.create({
+  await prisma.agent.create({
     data: {
+      id: "seed-fin-agent",
       name: "Fin-Agent",
       description: "财务助手，处理报表、对账和财务分析",
       capabilities: JSON.stringify(["报表生成", "数据分析", "对账核算", "预算管理"]),
