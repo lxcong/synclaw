@@ -35,6 +35,7 @@ model Task {
   title           String
   description     String?
   status          String              @default("todo") // todo | thinking | acting | blocked | done
+  runId           String?             // OpenClaw Gateway run ID
   workspace       Workspace           @relation(fields: [workspaceId], references: [id])
   workspaceId     String
   assignedAgent   Agent?              @relation(fields: [assignedAgentId], references: [id])
