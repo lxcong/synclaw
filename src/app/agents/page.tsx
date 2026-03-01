@@ -1,6 +1,7 @@
 import { gatewayClient } from "@/lib/gateway-client";
 import { syncAgentsFromGateway, getAgentsWithInferredStatus } from "@/lib/agent-sync";
 import { AgentCard } from "@/components/agent-card";
+import { SyncAgentsButton } from "@/components/sync-agents-button";
 import type { Agent } from "@/types";
 
 export default async function AgentsPage() {
@@ -30,6 +31,9 @@ export default async function AgentsPage() {
         style={{ borderColor: "var(--border)" }}
       >
         <h2 className="text-lg font-semibold">🤖 Agent 中心</h2>
+        <div className="ml-auto">
+          <SyncAgentsButton />
+        </div>
       </header>
       <div className="flex-1 overflow-y-auto p-6">
         {agentList.length === 0 ? (
