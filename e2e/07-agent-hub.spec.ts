@@ -5,8 +5,8 @@ test.describe("Agent Hub", () => {
     await page.goto("/agents");
     await page.waitForTimeout(1000);
 
-    // Page title is always present
-    await expect(page.getByText("Agent 中心")).toBeVisible();
+    // Page heading is always present
+    await expect(page.getByRole("heading", { name: /Agent 中心/ })).toBeVisible();
   });
 
   test("agent cards render when agents exist", async ({ page }) => {
@@ -29,6 +29,7 @@ test.describe("Agent Hub", () => {
     await page.waitForTimeout(1000);
 
     const sidebar = page.locator("aside");
-    await expect(sidebar.getByText("Agent 中心")).toBeVisible();
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.getByText("公司客服")).toBeVisible();
   });
 });
