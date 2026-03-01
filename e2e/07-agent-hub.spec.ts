@@ -9,18 +9,20 @@ test.describe("Agent Hub", () => {
     await expect(page.getByRole("heading", { name: /Agent 中心/ })).toBeVisible();
   });
 
-  test("agent cards render when agents exist", async ({ page }) => {
+  test("shows empty state or agent cards depending on Gateway", async ({ page }) => {
     await page.goto("/agents");
     await page.waitForTimeout(2000);
 
-    // Check if any agent cards are rendered (from Gateway or DB cache)
     const cards = page.locator("[data-testid='agent-card']");
     const count = await cards.count();
 
     if (count > 0) {
-      // Each card should have a name and status indicator
+      // Gateway is connected — agent cards are rendered
       const firstCard = cards.first();
       await expect(firstCard).toBeVisible();
+    } else {
+      // Gateway not connected — empty state is shown
+      await expect(page.getByText("暂无可用 Agent")).toBeVisible();
     }
   });
 

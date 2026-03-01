@@ -32,11 +32,21 @@ export default async function AgentsPage() {
         <h2 className="text-lg font-semibold">🤖 Agent 中心</h2>
       </header>
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
-          {agentList.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} />
-          ))}
-        </div>
+        {agentList.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <span className="text-4xl mb-4">🔌</span>
+            <p className="text-lg font-medium mb-2">暂无可用 Agent</p>
+            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+              连接 OpenClaw Gateway 后，Agent 将自动同步到此页面
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
+            {agentList.map((agent) => (
+              <AgentCard key={agent.id} agent={agent} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

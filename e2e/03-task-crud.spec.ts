@@ -22,23 +22,29 @@ test.describe("Task CRUD", () => {
     await expect(page.getByText("测试新任务").first()).toBeVisible();
   });
 
-  test("create a new task with agent assignment", async ({ page }) => {
+  test("create a new task with agent assignment (requires Gateway)", async ({ page }) => {
     await page.goto("/");
     await waitForAppReady(page);
 
     await page.getByText("+ 新建任务").click();
     await page.waitForTimeout(500);
 
-    await page.getByPlaceholder("输入任务标题").fill("Agent执行任务");
-
-    // Select an agent inside the dialog
     const dialog = page.locator("[role='dialog']");
-    await dialog.getByRole("button", { name: "CS-Agent" }).click();
+
+    // Agents are synced from Gateway; skip if none available
+    const agentButtons = dialog.locator("button").filter({ hasText: /🤖/ });
+    const agentCount = await agentButtons.count();
+    if (agentCount === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.getByPlaceholder("输入任务标题").fill("Agent执行任务");
+    await agentButtons.first().click();
 
     await page.getByRole("button", { name: "创建任务" }).click();
     await page.waitForTimeout(1000);
 
-    // Task should appear (in thinking status since agent was assigned)
     await expect(page.getByText("Agent执行任务").first()).toBeVisible();
   });
 
