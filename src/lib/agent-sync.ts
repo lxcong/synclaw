@@ -67,9 +67,17 @@ async function fetchAgentDescription(agentId: string): Promise<string> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Sync throttle — skip Gateway RPC if last sync was recent
+// ---------------------------------------------------------------------------
+
+const SYNC_INTERVAL_MS = 30_000; // 30 seconds
+let lastSyncMs = 0;
+
 /**
  * Sync agents from OpenClaw Gateway to local Prisma DB.
  *
+ * - Skips if last sync was less than 30s ago (returns cached DB data)
  * - Fetches agent list via `agents.list` RPC
  * - For each agent, fetches SOUL.md for description via `agents.files.get`
  * - Upserts each agent into local DB
@@ -77,7 +85,10 @@ async function fetchAgentDescription(agentId: string): Promise<string> {
  *
  * Returns the synced agent list from DB with task counts.
  */
-export async function syncAgentsFromGateway() {
+export async function syncAgentsFromGateway(forceSync = false) {
+  if (!forceSync && Date.now() - lastSyncMs < SYNC_INTERVAL_MS) {
+    return getAgentsWithInferredStatus();
+  }
   const result = (await gatewayClient.request(
     "agents.list",
     {}
@@ -135,6 +146,7 @@ export async function syncAgentsFromGateway() {
     }
   }
 
+  lastSyncMs = Date.now();
   return getAgentsWithInferredStatus();
 }
 
