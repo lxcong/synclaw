@@ -37,6 +37,9 @@ next-env.d.ts
 # prisma generated
 generated/
 
+# device identity (private keys)
+.data/
+
 # IDE
 .idea/
 .vscode/

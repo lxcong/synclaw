@@ -1,3 +1,6 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import WebSocket from "ws";
 
 // ---------------------------------------------------------------------------
@@ -33,6 +36,13 @@ interface ConnectParams {
   scopes: string[];
   caps: string[];
   auth?: { token: string };
+  device?: {
+    id: string;
+    publicKey: string;
+    signature: string;
+    signedAt: number;
+    nonce: string;
+  };
 }
 
 interface RequestFrame {
@@ -63,6 +73,113 @@ interface PendingRequest {
 }
 
 // ---------------------------------------------------------------------------
+// Device Identity
+// ---------------------------------------------------------------------------
+
+interface DeviceIdentity {
+  deviceId: string;
+  publicKeyPem: string;
+  privateKeyPem: string;
+}
+
+const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
+
+function base64UrlEncode(buf: Buffer): string {
+  return buf.toString("base64").replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
+}
+
+function derivePublicKeyRaw(publicKeyPem: string): Buffer {
+  const key = crypto.createPublicKey(publicKeyPem);
+  const spki = key.export({ type: "spki", format: "der" }) as Buffer;
+  if (
+    spki.length === ED25519_SPKI_PREFIX.length + 32 &&
+    spki.subarray(0, ED25519_SPKI_PREFIX.length).equals(ED25519_SPKI_PREFIX)
+  ) {
+    return spki.subarray(ED25519_SPKI_PREFIX.length);
+  }
+  return spki;
+}
+
+function fingerprintPublicKey(publicKeyPem: string): string {
+  const raw = derivePublicKeyRaw(publicKeyPem);
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+function loadOrCreateDeviceIdentity(filePath: string): DeviceIdentity {
+  try {
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, "utf8");
+      const parsed = JSON.parse(raw) as {
+        version?: number;
+        deviceId?: string;
+        publicKeyPem?: string;
+        privateKeyPem?: string;
+      };
+      if (
+        parsed?.version === 1 &&
+        typeof parsed.deviceId === "string" &&
+        typeof parsed.publicKeyPem === "string" &&
+        typeof parsed.privateKeyPem === "string"
+      ) {
+        return {
+          deviceId: parsed.deviceId,
+          publicKeyPem: parsed.publicKeyPem,
+          privateKeyPem: parsed.privateKeyPem,
+        };
+      }
+    }
+  } catch {
+    // fall through to regenerate
+  }
+
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+  const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
+  const privateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  const deviceId = fingerprintPublicKey(publicKeyPem);
+
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const stored = {
+    version: 1,
+    deviceId,
+    publicKeyPem,
+    privateKeyPem,
+    createdAtMs: Date.now(),
+  };
+  fs.writeFileSync(filePath, `${JSON.stringify(stored, null, 2)}\n`, { mode: 0o600 });
+
+  return { deviceId, publicKeyPem, privateKeyPem };
+}
+
+function signPayload(privateKeyPem: string, payload: string): string {
+  const key = crypto.createPrivateKey(privateKeyPem);
+  const sig = crypto.sign(null, Buffer.from(payload, "utf8"), key);
+  return base64UrlEncode(sig);
+}
+
+function buildDeviceAuthPayload(params: {
+  deviceId: string;
+  clientId: string;
+  clientMode: string;
+  role: string;
+  scopes: string[];
+  signedAtMs: number;
+  token: string;
+  nonce: string;
+}): string {
+  return [
+    "v2",
+    params.deviceId,
+    params.clientId,
+    params.clientMode,
+    params.role,
+    params.scopes.join(","),
+    String(params.signedAtMs),
+    params.token,
+    params.nonce,
+  ].join("|");
+}
+
+// ---------------------------------------------------------------------------
 // GatewayClient
 // ---------------------------------------------------------------------------
 
@@ -72,6 +189,11 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_BACKOFF_MS = 30_000;
 const PING_INTERVAL_MS = 30_000;
 const CONNECT_CHALLENGE_TIMEOUT_MS = 5_000;
+const IDENTITY_PATH = path.join(
+  process.cwd(),
+  ".data",
+  "device-identity.json"
+);
 
 export class GatewayClient {
   private ws: WebSocket | null = null;
@@ -91,6 +213,9 @@ export class GatewayClient {
   private pendingRequests = new Map<string, PendingRequest>();
   private subscribers = new Map<string, RunSubscriber>();
 
+  /** Ed25519 device identity for Gateway authentication. */
+  private deviceIdentity: DeviceIdentity;
+
   /** Resolves once the connect handshake succeeds for the current connection. */
   private helloPromise: Promise<void> | null = null;
   private helloResolve: (() => void) | null = null;
@@ -98,6 +223,7 @@ export class GatewayClient {
 
   constructor(url?: string) {
     this.url = url ?? process.env.OPENCLAW_GATEWAY_URL ?? DEFAULT_URL;
+    this.deviceIdentity = loadOrCreateDeviceIdentity(IDENTITY_PATH);
   }
 
   // -----------------------------------------------------------------------
@@ -243,7 +369,7 @@ export class GatewayClient {
 
   /**
    * Send the "connect" RPC request after receiving the challenge nonce.
-   * The Gateway will respond with hello-ok payload on success.
+   * Includes device identity with Ed25519 signature for scope authorization.
    */
   private _sendConnect(nonce: string): void {
     if (this.connectRequestId) return; // Already sent
@@ -253,22 +379,48 @@ export class GatewayClient {
     const id = crypto.randomUUID();
     this.connectRequestId = id;
 
+    const role = "operator";
+    const scopes = ["operator.admin"];
+    const clientId = "gateway-client";
+    const clientMode = "backend";
+    const token = process.env.OPENCLAW_GATEWAY_TOKEN ?? "";
+    const signedAtMs = Date.now();
+
+    // Build and sign device auth payload
+    const payload = buildDeviceAuthPayload({
+      deviceId: this.deviceIdentity.deviceId,
+      clientId,
+      clientMode,
+      role,
+      scopes,
+      signedAtMs,
+      token,
+      nonce,
+    });
+    const signature = signPayload(this.deviceIdentity.privateKeyPem, payload);
+
     const params: ConnectParams = {
       minProtocol: PROTOCOL_VERSION,
       maxProtocol: PROTOCOL_VERSION,
       client: {
-        id: "gateway-client",
+        id: clientId,
         displayName: "SyncClaw",
         version: "0.1.0",
         platform: process.platform,
-        mode: "backend",
+        mode: clientMode,
       },
-      role: "operator",
-      scopes: ["admin"],
-      caps: [],
+      role,
+      scopes,
+      caps: ["tool-events"],
+      device: {
+        id: this.deviceIdentity.deviceId,
+        publicKey: base64UrlEncode(derivePublicKeyRaw(this.deviceIdentity.publicKeyPem)),
+        signature,
+        signedAt: signedAtMs,
+        nonce,
+      },
     };
 
-    const token = process.env.OPENCLAW_GATEWAY_TOKEN;
     if (token) {
       params.auth = { token };
     }
@@ -391,22 +543,27 @@ export class GatewayClient {
   }
 
   private _onResponse(frame: ResponseFrame): void {
+    // Resolve pending request if one exists.
+    // For "agent" requests, the first response (status: "accepted") resolves the
+    // promise. The second response (status: "ok"/"error") arrives later without a
+    // matching pending entry, but must still notify subscribers below.
     const pending = this.pendingRequests.get(frame.id);
-    if (!pending) return;
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.pendingRequests.delete(frame.id);
 
-    clearTimeout(pending.timer);
-    this.pendingRequests.delete(frame.id);
-
-    if (frame.ok) {
-      pending.resolve(frame.payload);
-    } else {
-      pending.reject(
-        new Error(frame.error?.message ?? "Unknown error (no error message in response)")
-      );
+      if (frame.ok) {
+        pending.resolve(frame.payload);
+      } else {
+        pending.reject(
+          new Error(frame.error?.message ?? "Unknown error (no error message in response)")
+        );
+      }
     }
 
-    // Check if this response is for an agent run (has payload.runId and a
-    // terminal status). A "res" with status !== "accepted" signals completion.
+    // Notify subscriber on terminal agent run responses (runs regardless of
+    // pending state so the second "final" response from "agent" requests
+    // triggers onComplete/onError even after the pending entry was consumed).
     const payload = frame.payload as Record<string, unknown> | undefined;
     if (payload && typeof payload.runId === "string" && payload.status !== "accepted") {
       const subscriber = this.subscribers.get(payload.runId);
