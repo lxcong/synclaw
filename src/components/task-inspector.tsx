@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { ThoughtStream } from "./thought-stream";
-import { InterventionPanel } from "./intervention-panel";
 import { ResultPreview } from "./result-preview";
 
 interface Props {
@@ -20,16 +19,10 @@ interface Props {
   onTaskUpdate: (task: Task) => void;
 }
 
-export function TaskInspector({ task, onClose, onTaskUpdate }: Props) {
+export function TaskInspector({ task, onClose }: Props) {
   const stream = useTaskStream(task?.id ?? null);
 
   const effectiveStatus = stream.status ?? task?.status;
-
-  function handleInterventionResolved() {
-    if (task) {
-      onTaskUpdate({ ...task, status: "acting" });
-    }
-  }
 
   return (
     <Sheet open={!!task} onOpenChange={(open) => !open && onClose()}>
@@ -66,17 +59,6 @@ export function TaskInspector({ task, onClose, onTaskUpdate }: Props) {
           <div className="flex-1 overflow-hidden">
             <ThoughtStream thoughts={stream.thoughts} connected={stream.connected} />
           </div>
-
-          {stream.intervention && !stream.intervention.resolvedAt && task && (
-            <>
-              <Separator style={{ background: "var(--border)" }} />
-              <InterventionPanel
-                intervention={stream.intervention}
-                taskId={task.id}
-                onResolved={handleInterventionResolved}
-              />
-            </>
-          )}
 
           {stream.results.length > 0 && (
             <>

@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       description: body.description,
       workspaceId: body.workspaceId,
       assignedAgentId: body.assignedAgentId,
-      status: body.assignedAgentId ? "thinking" : "todo",
+      status: body.assignedAgentId ? "acting" : "todo",
     },
     include: { assignedAgent: true },
   });

@@ -2,15 +2,13 @@ import { test, expect } from "@playwright/test";
 import { waitForAppReady } from "./helpers";
 
 test.describe("Kanban Board", () => {
-  test("displays five status columns", async ({ page }) => {
+  test("displays three status columns", async ({ page }) => {
     await page.goto("/");
     await waitForAppReady(page);
 
-    // All five column headers should be visible
+    // All three column headers should be visible
     await expect(page.getByText("待处理")).toBeVisible();
-    await expect(page.getByText("思考中")).toBeVisible();
     await expect(page.getByText("执行中")).toBeVisible();
-    await expect(page.getByText("待干预")).toBeVisible();
     await expect(page.getByText("已完成")).toBeVisible();
   });
 

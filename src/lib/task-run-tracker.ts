@@ -53,7 +53,7 @@ export function trackTaskRun(taskId: string, runId: string, agentId: string): vo
 
         await prisma.task.update({
           where: { id: taskId },
-          data: { status: "blocked" },
+          data: { status: "done" },
         });
       } catch (err) {
         console.error("[task-tracker] onError failed:", err);
@@ -73,16 +73,12 @@ async function handleEvent(taskId: string, agentId: string, event: AgentEvent): 
       if (phase === "start") {
         await prisma.task.update({
           where: { id: taskId },
-          data: { status: "thinking" },
+          data: { status: "acting" },
         });
       } else if (phase === "error") {
         const errorContent = (event.data.error as string) ?? "Unknown lifecycle error";
         await prisma.thoughtEntry.create({
           data: { taskId, agentId, type: "error", content: errorContent },
-        });
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { status: "blocked" },
         });
       }
       break;

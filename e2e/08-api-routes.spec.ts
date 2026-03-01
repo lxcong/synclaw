@@ -68,7 +68,7 @@ test.describe("API Routes", () => {
     expect(task.status).toBe("todo");
   });
 
-  test("POST /api/tasks with agent sets status to thinking or falls back to todo", async ({ request }) => {
+  test("POST /api/tasks with agent sets status to acting or falls back to todo", async ({ request }) => {
     const wsRes = await request.get(`${BASE}/api/workspaces`);
     const workspaces = await wsRes.json();
     const agentsRes = await request.get(`${BASE}/api/agents`);
@@ -88,8 +88,8 @@ test.describe("API Routes", () => {
     });
     expect(res.status()).toBe(201);
     const task = await res.json();
-    // "thinking" if Gateway dispatch succeeded, "todo" if it failed and fell back
-    expect(["thinking", "todo"]).toContain(task.status);
+    // "acting" if Gateway dispatch succeeded, "todo" if it failed and fell back
+    expect(["acting", "todo"]).toContain(task.status);
   });
 
   test("PATCH /api/tasks/[id] updates task", async ({ request }) => {
@@ -142,7 +142,6 @@ test.describe("API Routes", () => {
       const task = await res.json();
       expect(task).toHaveProperty("thoughts");
       expect(task).toHaveProperty("results");
-      expect(task).toHaveProperty("interventions");
       expect(task.assignedAgent).toBeTruthy();
     }
   });

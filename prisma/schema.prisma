@@ -36,7 +36,7 @@ model Task {
   id              String              @id @default(cuid())
   title           String
   description     String?
-  status          String              @default("todo") // todo | thinking | acting | blocked | done
+  status          String              @default("todo") // todo | acting | done
   runId           String?             // OpenClaw Gateway run ID
   workspace       Workspace           @relation(fields: [workspaceId], references: [id])
   workspaceId     String
@@ -44,7 +44,6 @@ model Task {
   assignedAgentId String?
   thoughts        ThoughtEntry[]
   results         TaskResult[]
-  interventions   InterventionRequest[]
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 }
@@ -72,13 +71,3 @@ model TaskResult {
   createdAt DateTime @default(now())
 }
 
-model InterventionRequest {
-  id         String    @id @default(cuid())
-  task       Task      @relation(fields: [taskId], references: [id])
-  taskId     String
-  question   String
-  options    String?   // JSON array as string
-  response   String?
-  resolvedAt DateTime?
-  createdAt  DateTime  @default(now())
-}

@@ -1,5 +1,5 @@
 // === Task Status Lifecycle ===
-export type TaskStatus = "todo" | "thinking" | "acting" | "blocked" | "done";
+export type TaskStatus = "todo" | "acting" | "done";
 
 // === Agent Status ===
 export type AgentStatus = "idle" | "busy" | "offline" | "error";
@@ -66,31 +66,18 @@ export interface TaskResult {
   createdAt: Date;
 }
 
-export interface InterventionRequest {
-  id: string;
-  taskId: string;
-  question: string;
-  options?: string[] | null;
-  response?: string | null;
-  resolvedAt?: Date | null;
-  createdAt: Date;
-}
-
 // === SSE Event Types ===
 export type SSEEvent =
   | { type: "status_change"; status: TaskStatus }
   | { type: "thought"; entry: ThoughtEntry }
-  | { type: "intervention"; request: InterventionRequest }
   | { type: "result"; result: TaskResult }
   | { type: "heartbeat" };
 
 // === Status UI Metadata ===
 export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; animate?: boolean }> = {
   todo: { label: "\u5F85\u5904\u7406", color: "var(--muted)" },
-  thinking: { label: "\u601D\u8003\u4E2D", color: "var(--thinking)", animate: true },
   acting: { label: "\u6267\u884C\u4E2D", color: "var(--acting)", animate: true },
-  blocked: { label: "\u5F85\u5E72\u9884", color: "var(--blocked)" },
   done: { label: "\u5DF2\u5B8C\u6210", color: "var(--success)" },
 };
 
-export const TASK_STATUSES: TaskStatus[] = ["todo", "thinking", "acting", "blocked", "done"];
+export const TASK_STATUSES: TaskStatus[] = ["todo", "acting", "done"];

@@ -25,7 +25,7 @@ export function TaskCard({ task, onClick }: Props) {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    borderColor: task.status === "blocked" ? "var(--blocked)" : "var(--border)",
+    borderColor: "var(--border)",
     background: "var(--background)",
   };
 
@@ -64,14 +64,6 @@ export function TaskCard({ task, onClick }: Props) {
             style={{ background: "var(--card)", color: "var(--muted-foreground)" }}
           >
             🤖 {task.assignedAgent.name}
-          </span>
-        )}
-        {task.status === "blocked" && (
-          <span
-            className="text-xs font-medium px-1.5 py-0.5 rounded"
-            style={{ background: "var(--blocked)", color: "white" }}
-          >
-            需要介入
           </span>
         )}
       </div>

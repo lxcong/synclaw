@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import type { ThoughtEntry, InterventionRequest, TaskResult, TaskStatus } from "@/types";
+import type { ThoughtEntry, TaskResult, TaskStatus } from "@/types";
 
 interface StreamState {
   thoughts: ThoughtEntry[];
   results: TaskResult[];
-  intervention: InterventionRequest | null;
   status: TaskStatus | null;
   connected: boolean;
 }
@@ -15,7 +14,6 @@ export function useTaskStream(taskId: string | null) {
   const [state, setState] = useState<StreamState>({
     thoughts: [],
     results: [],
-    intervention: null,
     status: null,
     connected: false,
   });
@@ -39,7 +37,6 @@ export function useTaskStream(taskId: string | null) {
     setState({
       thoughts: [],
       results: [],
-      intervention: null,
       status: null,
       connected: false,
     });
@@ -53,12 +50,10 @@ export function useTaskStream(taskId: string | null) {
           thoughts: task.thoughts ?? [],
           results: task.results ?? [],
           status: task.status,
-          intervention:
-            task.interventions?.find((i: InterventionRequest) => !i.resolvedAt) ?? null,
         }));
 
         // Only connect SSE for actively processing tasks
-        if (['thinking', 'acting', 'blocked'].includes(task.status)) {
+        if (task.status === "acting") {
           const es = new EventSource(`/api/tasks/${taskId}/stream`);
           eventSourceRef.current = es;
 
@@ -77,11 +72,6 @@ export function useTaskStream(taskId: string | null) {
               ...s,
               thoughts: [...s.thoughts, thought],
             }));
-          });
-
-          es.addEventListener("intervention", (e) => {
-            const intervention = JSON.parse(e.data);
-            setState((s) => ({ ...s, intervention }));
           });
 
           es.addEventListener("result", (e) => {

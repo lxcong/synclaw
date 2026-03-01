@@ -12,7 +12,6 @@ export async function GET(
       assignedAgent: true,
       thoughts: { orderBy: { timestamp: "asc" } },
       results: { orderBy: { createdAt: "asc" } },
-      interventions: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
@@ -48,7 +47,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  await prisma.interventionRequest.deleteMany({ where: { taskId: id } });
   await prisma.taskResult.deleteMany({ where: { taskId: id } });
   await prisma.thoughtEntry.deleteMany({ where: { taskId: id } });
   await prisma.task.delete({ where: { id } });

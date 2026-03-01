@@ -169,7 +169,7 @@ export async function getAgentsWithInferredStatus() {
       const activeTasks = await prisma.task.count({
         where: {
           assignedAgentId: agent.id,
-          status: { in: ["thinking", "acting"] },
+          status: { in: ["acting"] },
         },
       });
       return {

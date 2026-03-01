@@ -9,7 +9,6 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   // Clean existing data
-  await prisma.interventionRequest.deleteMany();
   await prisma.taskResult.deleteMany();
   await prisma.thoughtEntry.deleteMany();
   await prisma.task.deleteMany();

@@ -186,13 +186,13 @@ export async function GET(
 
             send("thought", thought);
 
-            // Update task status to blocked
+            // Update task status to done on error
             await prisma.task.update({
               where: { id: taskId },
-              data: { status: "blocked" },
+              data: { status: "done" },
             });
 
-            send("status_change", { status: "blocked" });
+            send("status_change", { status: "done" });
           } catch (err) {
             console.error("[stream] Error in onError:", err);
           } finally {
@@ -207,10 +207,10 @@ export async function GET(
         const phase = data.phase as string | undefined;
 
         if (phase === "start") {
-          send("status_change", { status: "thinking" });
+          send("status_change", { status: "acting" });
           await prisma.task.update({
             where: { id: taskId },
-            data: { status: "thinking" },
+            data: { status: "acting" },
           }).catch((err) => console.error("[stream] DB update failed:", err));
 
         } else if (phase === "error") {
@@ -226,13 +226,6 @@ export async function GET(
               content: errorContent,
             },
           }).catch((err) => console.error("[stream] DB insert failed:", err));
-
-          send("status_change", { status: "blocked" });
-
-          await prisma.task.update({
-            where: { id: taskId },
-            data: { status: "blocked" },
-          }).catch((err) => console.error("[stream] DB update failed:", err));
         }
         // phase === "end" is handled by onComplete callback
       }
