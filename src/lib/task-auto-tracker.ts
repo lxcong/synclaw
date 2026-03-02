@@ -1,0 +1,181 @@
+import { prisma } from "@/lib/db";
+import type { AgentEvent } from "@/lib/gateway-client";
+
+// ---------------------------------------------------------------------------
+// In-memory dedup & concurrency control
+// ---------------------------------------------------------------------------
+
+const knownRunIds = new Set<string>();
+const pendingCreations = new Map<string, Promise<string | null>>();
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse agent ID from a sessionKey like "agent:{agentId}:..."
+ */
+function parseAgentIdFromSessionKey(sessionKey: string | undefined): string | null {
+  if (!sessionKey) return null;
+  const match = sessionKey.match(/^agent:([^:]+):/);
+  return match ? match[1] : null;
+}
+
+let cachedDefaultWorkspaceId: string | null = null;
+
+async function getDefaultWorkspaceId(): Promise<string> {
+  if (cachedDefaultWorkspaceId) return cachedDefaultWorkspaceId;
+
+  const workspace = await prisma.workspace.findFirst({
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (workspace) {
+    cachedDefaultWorkspaceId = workspace.id;
+    return workspace.id;
+  }
+
+  // Create a default workspace if none exists
+  const created = await prisma.workspace.create({
+    data: { name: "Default", icon: "📁" },
+  });
+  cachedDefaultWorkspaceId = created.id;
+  return created.id;
+}
+
+// ---------------------------------------------------------------------------
+// Core: ensure a Task exists for a given runId
+// ---------------------------------------------------------------------------
+
+async function ensureTaskForRun(
+  runId: string,
+  event: AgentEvent
+): Promise<string | null> {
+  // 1. Fast path: already known
+  if (knownRunIds.has(runId)) return null;
+
+  // 2. Coalesce concurrent calls for the same runId
+  const inflight = pendingCreations.get(runId);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    try {
+      // 3. DB check (covers server restarts where knownRunIds is empty)
+      const existing = await prisma.task.findUnique({ where: { runId } });
+      if (existing) {
+        knownRunIds.add(runId);
+        return existing.id;
+      }
+
+      // 4. Resolve agent
+      const agentId = parseAgentIdFromSessionKey(event.sessionKey);
+      let assignedAgentId: string | undefined;
+      let agentName = "Unknown Agent";
+
+      if (agentId) {
+        const agent = await prisma.agent.findUnique({ where: { id: agentId } });
+        if (agent) {
+          assignedAgentId = agent.id;
+          agentName = agent.name;
+        }
+      }
+
+      // 5. Create the task
+      const workspaceId = await getDefaultWorkspaceId();
+      const task = await prisma.task.create({
+        data: {
+          title: `External Task [${agentName}]`,
+          status: "acting",
+          runId,
+          workspaceId,
+          assignedAgentId,
+        },
+      });
+
+      knownRunIds.add(runId);
+      return task.id;
+    } catch (err) {
+      // Unique constraint violation → another path created it first
+      if (
+        err instanceof Error &&
+        err.message.includes("Unique constraint")
+      ) {
+        knownRunIds.add(runId);
+        const existing = await prisma.task.findUnique({ where: { runId } });
+        return existing?.id ?? null;
+      }
+      console.error("[task-auto-tracker] Failed to create task:", err);
+      return null;
+    } finally {
+      pendingCreations.delete(runId);
+    }
+  })();
+
+  pendingCreations.set(runId, promise);
+  return promise;
+}
+
+// ---------------------------------------------------------------------------
+// Global event handler
+// ---------------------------------------------------------------------------
+
+export async function handleGlobalAgentEvent(event: AgentEvent): Promise<void> {
+  const { runId } = event;
+  if (!runId) return;
+
+  const taskId = await ensureTaskForRun(runId, event);
+  if (!taskId) return;
+
+  // Resolve agentId for ThoughtEntry (required field)
+  const agentId = parseAgentIdFromSessionKey(event.sessionKey);
+
+  switch (event.stream) {
+    case "lifecycle": {
+      const phase = event.data.phase as string | undefined;
+      if (phase === "start") {
+        await prisma.task.update({
+          where: { id: taskId },
+          data: { status: "acting" },
+        });
+      } else if (phase === "end") {
+        const task = await prisma.task.findUnique({ where: { id: taskId } });
+        if (task && task.status === "acting") {
+          await prisma.task.update({
+            where: { id: taskId },
+            data: { status: "done" },
+          });
+        }
+      } else if (phase === "error" && agentId) {
+        const errorContent =
+          (event.data.error as string) ?? "Unknown lifecycle error";
+        await prisma.thoughtEntry.create({
+          data: { taskId, agentId, type: "error", content: errorContent },
+        });
+        await prisma.task.update({
+          where: { id: taskId },
+          data: { status: "done" },
+        });
+      }
+      break;
+    }
+    case "assistant": {
+      if (!agentId) break;
+      const delta =
+        (event.data.delta as string) ?? (event.data.text as string) ?? "";
+      if (delta) {
+        await prisma.thoughtEntry.create({
+          data: { taskId, agentId, type: "thinking", content: delta },
+        });
+      }
+      break;
+    }
+    case "error": {
+      if (!agentId) break;
+      const message = (event.data.message as string) ?? "Unknown error";
+      await prisma.thoughtEntry.create({
+        data: { taskId, agentId, type: "error", content: message },
+      });
+      break;
+    }
+  }
+}

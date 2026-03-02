@@ -37,7 +37,7 @@ model Task {
   title           String
   description     String?
   status          String              @default("todo") // todo | acting | done
-  runId           String?             // OpenClaw Gateway run ID
+  runId           String?             @unique // OpenClaw Gateway run ID
   workspace       Workspace           @relation(fields: [workspaceId], references: [id])
   workspaceId     String
   assignedAgent   Agent?              @relation(fields: [assignedAgentId], references: [id])

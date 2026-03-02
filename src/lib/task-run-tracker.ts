@@ -75,6 +75,15 @@ async function handleEvent(taskId: string, agentId: string, event: AgentEvent): 
           where: { id: taskId },
           data: { status: "acting" },
         });
+      } else if (phase === "end") {
+        // Fallback: mark done if still acting (in case response frame never arrives)
+        const task = await prisma.task.findUnique({ where: { id: taskId } });
+        if (task && task.status === "acting") {
+          await prisma.task.update({
+            where: { id: taskId },
+            data: { status: "done" },
+          });
+        }
       } else if (phase === "error") {
         const errorContent = (event.data.error as string) ?? "Unknown lifecycle error";
         await prisma.thoughtEntry.create({
