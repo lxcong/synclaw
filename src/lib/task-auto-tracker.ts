@@ -47,12 +47,16 @@ async function getDefaultWorkspaceId(): Promise<string> {
 // Core: ensure a Task exists for a given runId
 // ---------------------------------------------------------------------------
 
+/** Maps runId → taskId for fast lookup after first encounter. */
+const runIdToTaskId = new Map<string, string>();
+
 async function ensureTaskForRun(
   runId: string,
   event: AgentEvent
 ): Promise<string | null> {
-  // 1. Fast path: already known
-  if (knownRunIds.has(runId)) return null;
+  // 1. Fast path: already known — return cached taskId
+  const cached = runIdToTaskId.get(runId);
+  if (cached) return cached;
 
   // 2. Coalesce concurrent calls for the same runId
   const inflight = pendingCreations.get(runId);
@@ -60,10 +64,11 @@ async function ensureTaskForRun(
 
   const promise = (async () => {
     try {
-      // 3. DB check (covers server restarts where knownRunIds is empty)
+      // 3. DB check (covers server restarts where in-memory cache is empty)
       const existing = await prisma.task.findUnique({ where: { runId } });
       if (existing) {
         knownRunIds.add(runId);
+        runIdToTaskId.set(runId, existing.id);
         return existing.id;
       }
 
@@ -93,6 +98,7 @@ async function ensureTaskForRun(
       });
 
       knownRunIds.add(runId);
+      runIdToTaskId.set(runId, task.id);
       return task.id;
     } catch (err) {
       // Unique constraint violation → another path created it first
@@ -102,7 +108,11 @@ async function ensureTaskForRun(
       ) {
         knownRunIds.add(runId);
         const existing = await prisma.task.findUnique({ where: { runId } });
-        return existing?.id ?? null;
+        if (existing) {
+          runIdToTaskId.set(runId, existing.id);
+          return existing.id;
+        }
+        return null;
       }
       console.error("[task-auto-tracker] Failed to create task:", err);
       return null;
@@ -116,8 +126,17 @@ async function ensureTaskForRun(
 }
 
 // ---------------------------------------------------------------------------
+// Accumulate assistant text per run for final TaskResult
+// ---------------------------------------------------------------------------
+
+const runAssistantText = new Map<string, string>();
+
+// ---------------------------------------------------------------------------
 // Global event handler
 // ---------------------------------------------------------------------------
+// NOTE: Gateway only broadcasts lifecycle, assistant, and error events to all
+// operators. Tool events are only sent to the operator that initiated the run,
+// so external tasks will not have tool_use/result thought entries.
 
 export async function handleGlobalAgentEvent(event: AgentEvent): Promise<void> {
   const { runId } = event;
@@ -140,11 +159,25 @@ export async function handleGlobalAgentEvent(event: AgentEvent): Promise<void> {
       } else if (phase === "end") {
         const task = await prisma.task.findUnique({ where: { id: taskId } });
         if (task && task.status === "acting") {
+          // Create TaskResult from accumulated assistant text
+          const resultText = runAssistantText.get(runId);
+          if (resultText) {
+            await prisma.taskResult.create({
+              data: {
+                taskId,
+                type: "text",
+                title: "Execution Result",
+                content: resultText,
+              },
+            });
+          }
+
           await prisma.task.update({
             where: { id: taskId },
             data: { status: "done" },
           });
         }
+        runAssistantText.delete(runId);
       } else if (phase === "error" && agentId) {
         const errorContent =
           (event.data.error as string) ?? "Unknown lifecycle error";
@@ -155,17 +188,16 @@ export async function handleGlobalAgentEvent(event: AgentEvent): Promise<void> {
           where: { id: taskId },
           data: { status: "done" },
         });
+        runAssistantText.delete(runId);
       }
       break;
     }
     case "assistant": {
-      if (!agentId) break;
-      const delta =
-        (event.data.delta as string) ?? (event.data.text as string) ?? "";
-      if (delta) {
-        await prisma.thoughtEntry.create({
-          data: { taskId, agentId, type: "thinking", content: delta },
-        });
+      // Gateway sends cumulative `text` and incremental `delta`.
+      // Use `text` directly as it already contains the full response so far.
+      const text = (event.data.text as string) ?? "";
+      if (text) {
+        runAssistantText.set(runId, text);
       }
       break;
     }
