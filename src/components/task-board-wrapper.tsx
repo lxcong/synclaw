@@ -18,6 +18,7 @@ import { KanbanColumn } from "./kanban-column";
 import { TaskCard } from "./task-card";
 import { CreateTaskDialog } from "./create-task-dialog";
 import { TaskInspector } from "./task-inspector";
+import { AgentPanel } from "./agent-panel";
 
 interface Props {
   workspaceId: string;
@@ -29,6 +30,7 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [inspectedTask, setInspectedTask] = useState<Task | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [agentPanelOpen, setAgentPanelOpen] = useState(true);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -100,29 +102,40 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
 
   return (
     <>
-      <TopBar title={workspaceName} onNewTask={() => setCreateDialogOpen(true)} />
+      <TopBar
+        title={workspaceName}
+        onNewTask={() => setCreateDialogOpen(true)}
+        agentPanelOpen={agentPanelOpen}
+        onToggleAgentPanel={() => setAgentPanelOpen((v) => !v)}
+      />
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex-1 flex overflow-x-auto p-4 gap-4">
-          {TASK_STATUSES.map((status) => (
-            <KanbanColumn
-              key={status}
-              status={status}
-              tasks={tasks.filter((t) => t.status === status)}
-              onTaskClick={handleTaskClick}
-            />
-          ))}
-        </div>
+      <div className="flex-1 flex overflow-hidden">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex-1 flex overflow-x-auto p-4 gap-4">
+            {TASK_STATUSES.map((status) => (
+              <KanbanColumn
+                key={status}
+                status={status}
+                tasks={tasks.filter((t) => t.status === status)}
+                onTaskClick={handleTaskClick}
+              />
+            ))}
+          </div>
 
-        <DragOverlay>
-          {activeTask ? <TaskCard task={activeTask} onClick={() => {}} /> : null}
-        </DragOverlay>
-      </DndContext>
+          <DragOverlay>
+            {activeTask ? <TaskCard task={activeTask} onClick={() => {}} /> : null}
+          </DragOverlay>
+        </DndContext>
+
+        {agentPanelOpen && (
+          <AgentPanel onClose={() => setAgentPanelOpen(false)} />
+        )}
+      </div>
 
       <TaskInspector
         task={inspectedTask}
