@@ -118,7 +118,7 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex-1 flex overflow-x-auto p-4 gap-4">
+          <div className={`${agentPanelOpen ? "w-1/2" : "flex-1"} flex overflow-x-auto p-4 gap-4`}>
             {TASK_STATUSES.map((status) => (
               <KanbanColumn
                 key={status}

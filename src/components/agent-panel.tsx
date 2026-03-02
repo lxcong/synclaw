@@ -80,7 +80,7 @@ export function AgentPanel({ onClose }: Props) {
 
   return (
     <aside
-      className="w-72 border-l flex flex-col shrink-0 h-full"
+      className="w-1/2 border-l flex flex-col shrink-0 h-full"
       style={{ borderColor: "var(--border)", background: "var(--background)" }}
     >
       <div
