@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from "react";
+import { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import type { Agent } from "@/types";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "./constants";
 import { OfficeScene } from "./office-scene";
@@ -21,6 +21,10 @@ const PixelOffice = forwardRef<PixelOfficeHandle, Props>(function PixelOffice(
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const sceneRef = useRef<OfficeScene | null>(null);
+  const sceneReadyRef = useRef(false);
+  const pendingAgentsRef = useRef<Agent[]>(agents);
+  const onAgentClickRef = useRef(onAgentClick);
+  onAgentClickRef.current = onAgentClick;
 
   // Expose imperative handle
   useImperativeHandle(ref, () => ({
@@ -35,6 +39,16 @@ const PixelOffice = forwardRef<PixelOfficeHandle, Props>(function PixelOffice(
 
     const scene = new OfficeScene();
     sceneRef.current = scene;
+
+    // Register ready callback BEFORE passing to Phaser
+    // (onReady is called at end of scene.create())
+    scene.onReady(() => {
+      sceneReadyRef.current = true;
+      scene.setAgentClickHandler((agentId) => {
+        onAgentClickRef.current?.(agentId);
+      });
+      scene.updateAgents(pendingAgentsRef.current);
+    });
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
@@ -56,31 +70,18 @@ const PixelOffice = forwardRef<PixelOfficeHandle, Props>(function PixelOffice(
       game.destroy(true);
       gameRef.current = null;
       sceneRef.current = null;
+      sceneReadyRef.current = false;
     };
   }, []);
 
-  // Update click handler
-  const onAgentClickRef = useRef(onAgentClick);
-  onAgentClickRef.current = onAgentClick;
-
-  useEffect(() => {
-    sceneRef.current?.setAgentClickHandler((agentId) => {
-      onAgentClickRef.current?.(agentId);
-    });
-  }, []);
-
   // Update agents when data changes
-  const updateAgents = useCallback((agentList: Agent[]) => {
-    const scene = sceneRef.current;
-    if (!scene || !scene.scene?.isActive()) return;
-    scene.updateAgents(agentList);
-  }, []);
-
   useEffect(() => {
-    // Small delay to ensure scene is created
-    const timer = setTimeout(() => updateAgents(agents), 100);
-    return () => clearTimeout(timer);
-  }, [agents, updateAgents]);
+    pendingAgentsRef.current = agents;
+    const scene = sceneRef.current;
+    if (scene && sceneReadyRef.current) {
+      scene.updateAgents(agents);
+    }
+  }, [agents]);
 
   return (
     <div

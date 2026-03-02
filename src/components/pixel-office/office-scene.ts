@@ -28,6 +28,7 @@ interface AgentSpriteData {
 export class OfficeScene extends Phaser.Scene {
   private agentSprites: Map<string, AgentSpriteData> = new Map();
   private onAgentClick?: (agentId: string) => void;
+  private onReadyCallback?: () => void;
 
   constructor() {
     super({ key: "OfficeScene" });
@@ -35,6 +36,11 @@ export class OfficeScene extends Phaser.Scene {
 
   setAgentClickHandler(handler: (agentId: string) => void) {
     this.onAgentClick = handler;
+  }
+
+  /** Register a callback to fire once the scene's create() has completed */
+  onReady(callback: () => void) {
+    this.onReadyCallback = callback;
   }
 
   preload() {
@@ -87,6 +93,9 @@ export class OfficeScene extends Phaser.Scene {
         });
       }
     }
+
+    // Notify React wrapper that scene is ready
+    this.onReadyCallback?.();
   }
 
   /** Update all agent sprites based on new agent data */

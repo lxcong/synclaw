@@ -31,6 +31,13 @@ export function AgentsPageClient({ initialAgents }: Props) {
   const pixelOfficeRef = useRef<PixelOfficeHandle>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Clean up highlight timer on unmount
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    };
+  }, []);
+
   // Poll for agent updates
   useEffect(() => {
     const poll = async () => {
