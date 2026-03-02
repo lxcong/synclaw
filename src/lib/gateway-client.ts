@@ -203,6 +203,8 @@ export class GatewayClient {
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
+  /** Set when a non-retriable error occurs (e.g. auth failure). */
+  private fatalError = false;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
 
   /** ID of the pending "connect" RPC request during handshake. */
@@ -234,6 +236,7 @@ export class GatewayClient {
   async connect(): Promise<void> {
     if (this.connected) return;
     if (this.connecting && this.helloPromise) return this.helloPromise;
+    if (this.fatalError) return; // Don't reconnect after auth failures
     this.intentionalClose = false;
     return this._connect();
   }
@@ -509,7 +512,14 @@ export class GatewayClient {
           this._onConnected();
         } else {
           const errorMsg = responseFrame.error?.message ?? "Connect rejected";
-          console.error("[GatewayClient] Connect handshake failed:", errorMsg);
+          const isAuthError = /unauthorized|forbidden|auth/i.test(errorMsg);
+          if (isAuthError) {
+            this.fatalError = true;
+            this.intentionalClose = true;
+            console.warn("[GatewayClient] Auth failed, will not retry:", errorMsg);
+          } else {
+            console.error("[GatewayClient] Connect handshake failed:", errorMsg);
+          }
           if (this.helloReject) {
             this.helloReject(new Error(errorMsg));
             this.helloResolve = null;
