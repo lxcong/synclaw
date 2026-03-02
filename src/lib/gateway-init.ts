@@ -1,27 +1,33 @@
 import { gatewayClient } from "./gateway-client";
 import { handleGlobalAgentEvent } from "./task-auto-tracker";
 
-let initialized = false;
+// Survive HMR: store cleanup function on globalThis so we can remove the
+// previous listener before registering a new one on each module reload.
+const g = globalThis as unknown as { __gatewayCleanup?: () => void };
 
 export async function initGateway() {
-  if (initialized) return;
-  initialized = true;
+  // Remove listener from previous HMR cycle (if any)
+  if (g.__gatewayCleanup) {
+    g.__gatewayCleanup();
+  }
 
-  // Register global listener before connecting so no events are missed
-  gatewayClient.onAgentEvent((event) => {
+  const unsubscribe = gatewayClient.onAgentEvent((event) => {
     handleGlobalAgentEvent(event).catch((err) =>
       console.error("[gateway-init] Global event handler error:", err)
     );
   });
+  g.__gatewayCleanup = unsubscribe;
 
-  try {
-    await gatewayClient.connect();
-    console.log("[gateway] Connected to OpenClaw Gateway");
-  } catch (err) {
-    console.warn(
-      "[gateway] Failed to connect (will retry on next request):",
-      err instanceof Error ? err.message : err
-    );
+  if (!gatewayClient.isConnected) {
+    try {
+      await gatewayClient.connect();
+      console.log("[gateway] Connected to OpenClaw Gateway");
+    } catch (err) {
+      console.warn(
+        "[gateway] Failed to connect (will retry on next request):",
+        err instanceof Error ? err.message : err
+      );
+    }
   }
 }
 

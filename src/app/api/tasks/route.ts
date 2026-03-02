@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       })) as { runId: string; status: string };
 
       // Check if auto-tracker already created a task for this runId
-      const autoTracked = await prisma.task.findUnique({
+      const autoTracked = await prisma.task.findFirst({
         where: { runId: result.runId },
       });
 

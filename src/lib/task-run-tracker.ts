@@ -16,9 +16,13 @@ export function trackTaskRun(taskId: string, runId: string, agentId: string): vo
 
     async onComplete(_runId: string, payload: unknown) {
       try {
-        // Guard: skip if task is already done (another handler may have completed it)
-        const current = await prisma.task.findUnique({ where: { id: taskId } });
-        if (!current || current.status === "done") return;
+        // Atomic guard: only the first handler to flip acting→done wins.
+        // updateMany returns count so concurrent handlers safely no-op.
+        const { count } = await prisma.task.updateMany({
+          where: { id: taskId, status: "acting" },
+          data: { status: "done" },
+        });
+        if (count === 0) return; // Another handler already completed it
 
         const content = typeof payload === "string"
           ? payload
@@ -32,11 +36,6 @@ export function trackTaskRun(taskId: string, runId: string, agentId: string): vo
             content,
           },
         });
-
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { status: "done" },
-        });
       } catch (err) {
         console.error("[task-tracker] onComplete failed:", err);
       } finally {
@@ -46,8 +45,11 @@ export function trackTaskRun(taskId: string, runId: string, agentId: string): vo
 
     async onError(_runId: string, error: { code: number; message: string }) {
       try {
-        const current = await prisma.task.findUnique({ where: { id: taskId } });
-        if (!current || current.status === "done") return;
+        const { count } = await prisma.task.updateMany({
+          where: { id: taskId, status: "acting" },
+          data: { status: "done" },
+        });
+        if (count === 0) return;
 
         await prisma.thoughtEntry.create({
           data: {
@@ -56,11 +58,6 @@ export function trackTaskRun(taskId: string, runId: string, agentId: string): vo
             type: "error",
             content: error.message,
           },
-        });
-
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { status: "done" },
         });
       } catch (err) {
         console.error("[task-tracker] onError failed:", err);
@@ -83,14 +80,10 @@ async function handleEvent(taskId: string, agentId: string, event: AgentEvent): 
           data: { status: "acting" },
         });
       } else if (phase === "end") {
-        // Fallback: mark done if still acting (in case response frame never arrives)
-        const task = await prisma.task.findUnique({ where: { id: taskId } });
-        if (task && task.status === "acting") {
-          await prisma.task.update({
-            where: { id: taskId },
-            data: { status: "done" },
-          });
-        }
+        // No-op: onComplete (response frame) handles status transition and
+        // TaskResult creation for user-created tasks. lifecycle.end arrives
+        // before the response frame, so we must NOT flip status here or
+        // onComplete's atomic guard would skip the TaskResult write.
       } else if (phase === "error") {
         const errorContent = (event.data.error as string) ?? "Unknown lifecycle error";
         await prisma.thoughtEntry.create({

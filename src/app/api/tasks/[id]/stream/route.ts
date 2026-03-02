@@ -138,61 +138,12 @@ export async function GET(
           }
         },
 
-        async onComplete(_runId: string, payload: unknown) {
+        async onComplete(_runId: string, _payload: unknown) {
           if (cancelled) return;
 
           try {
-            // Guard: skip DB writes if task is already done (trackTaskRun handles persistence)
-            const current = await prisma.task.findUnique({ where: { id: taskId } });
-            if (current && current.status === "done") {
-              send("status_change", { status: "done" });
-              return;
-            }
-
-            // Extract meaningful text from the run result.
-            // Priority: accumulated assistant text > payload message content > raw payload
-            let content = accumulatedAssistantText.trim();
-
-            if (!content) {
-              // Try to extract text from payload message (OpenClaw chat event format)
-              const p = payload as Record<string, unknown> | null;
-              const msg = p?.message as Record<string, unknown> | undefined;
-              if (msg) {
-                if (Array.isArray(msg.content)) {
-                  content = (msg.content as Array<Record<string, unknown>>)
-                    .filter((b) => b.type === "text" && typeof b.text === "string")
-                    .map((b) => b.text as string)
-                    .join("\n")
-                    .trim();
-                } else if (typeof msg.content === "string") {
-                  content = msg.content;
-                }
-              }
-            }
-
-            if (!content) {
-              content = typeof payload === "string"
-                ? payload
-                : JSON.stringify(payload, null, 2);
-            }
-
-            const result = await prisma.taskResult.create({
-              data: {
-                taskId,
-                type: "text",
-                title: "执行结果",
-                content,
-              },
-            });
-
-            send("result", result);
-
-            // Update task status to done
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: "done" },
-            });
-
+            // DB writes (TaskResult + status) are handled by task-run-tracker.
+            // This SSE handler only notifies the connected client.
             send("status_change", { status: "done" });
           } catch (err) {
             console.error("[stream] Error in onComplete:", err);
@@ -205,28 +156,9 @@ export async function GET(
           if (cancelled) return;
 
           try {
-            const current = await prisma.task.findUnique({ where: { id: taskId } });
-            if (current && current.status === "done") {
-              send("status_change", { status: "done" });
-              return;
-            }
-
-            const thought = await prisma.thoughtEntry.create({
-              data: {
-                taskId,
-                agentId,
-                type: "error",
-                content: error.message,
-              },
-            });
-
-            send("thought", thought);
-
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: "done" },
-            });
-
+            // DB writes are handled by task-run-tracker.
+            // Only notify the connected client.
+            send("thought", { type: "error", content: error.message });
             send("status_change", { status: "done" });
           } catch (err) {
             console.error("[stream] Error in onError:", err);

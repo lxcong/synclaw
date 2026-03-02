@@ -74,7 +74,7 @@ async function ensureTaskForRun(
   const promise = (async () => {
     try {
       // 3. DB check (covers server restarts where in-memory cache is empty)
-      const existing = await prisma.task.findUnique({ where: { runId } });
+      const existing = await prisma.task.findFirst({ where: { runId } });
       if (existing) {
         knownRunIds.add(runId);
         runIdToTaskId.set(runId, existing.id);
@@ -127,7 +127,7 @@ async function ensureTaskForRun(
         err.message.includes("Unique constraint")
       ) {
         knownRunIds.add(runId);
-        const existing = await prisma.task.findUnique({ where: { runId } });
+        const existing = await prisma.task.findFirst({ where: { runId } });
         if (existing) {
           runIdToTaskId.set(runId, existing.id);
           return existing.id;
@@ -196,44 +196,51 @@ export async function handleGlobalAgentEvent(event: AgentEvent): Promise<void> {
   switch (event.stream) {
     case "lifecycle": {
       const phase = event.data.phase as string | undefined;
+      // User-created tasks have sessionKey "agent:{id}:syncclaw:{taskId}".
+      // Their lifecycle is managed by task-run-tracker; auto-tracker only
+      // handles external (non-syncclaw) tasks to avoid duplicate writes.
+      const isUserCreatedTask = Boolean(parseTaskIdFromSessionKey(event.sessionKey));
+
       if (phase === "start") {
         await prisma.task.update({
           where: { id: taskId },
           data: { status: "acting" },
         });
       } else if (phase === "end") {
-        const task = await prisma.task.findUnique({ where: { id: taskId } });
-        if (task && task.status === "acting") {
-          // Create TaskResult from accumulated assistant text
-          const resultText = runAssistantText.get(runId);
-          if (resultText) {
-            await prisma.taskResult.create({
-              data: {
-                taskId,
-                type: "text",
-                title: "Execution Result",
-                content: resultText,
-              },
-            });
-          }
-
-          await prisma.task.update({
-            where: { id: taskId },
+        if (!isUserCreatedTask) {
+          // Atomic guard: only first handler to flip acting→done wins.
+          const { count } = await prisma.task.updateMany({
+            where: { id: taskId, status: "acting" },
             data: { status: "done" },
           });
+          if (count > 0) {
+            const resultText = runAssistantText.get(runId);
+            if (resultText) {
+              await prisma.taskResult.create({
+                data: {
+                  taskId,
+                  type: "text",
+                  title: "Execution Result",
+                  content: resultText,
+                },
+              });
+            }
+          }
         }
         runAssistantText.delete(runId);
         titleUpdatedRuns.delete(runId);
       } else if (phase === "error" && agentId) {
-        const errorContent =
-          (event.data.error as string) ?? "Unknown lifecycle error";
-        await prisma.thoughtEntry.create({
-          data: { taskId, agentId, type: "error", content: errorContent },
-        });
-        await prisma.task.update({
-          where: { id: taskId },
+        const { count } = await prisma.task.updateMany({
+          where: { id: taskId, status: "acting" },
           data: { status: "done" },
         });
+        if (count > 0) {
+          const errorContent =
+            (event.data.error as string) ?? "Unknown lifecycle error";
+          await prisma.thoughtEntry.create({
+            data: { taskId, agentId, type: "error", content: errorContent },
+          });
+        }
         runAssistantText.delete(runId);
         titleUpdatedRuns.delete(runId);
       }
