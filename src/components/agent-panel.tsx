@@ -1,10 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import type { Agent, AgentStatus } from "@/types";
+import type { PixelOfficeHandle } from "@/components/pixel-office/pixel-office";
 import { SyncAgentsButton } from "@/components/sync-agents-button";
-import { POLL_INTERVAL_MS } from "@/components/pixel-office/constants";
+import { POLL_INTERVAL_MS, HIGHLIGHT_DURATION_MS } from "@/components/pixel-office/constants";
+
+const PixelOffice = dynamic(() => import("@/components/pixel-office/pixel-office"), {
+  ssr: false,
+  loading: () => (
+    <div
+      className="w-full rounded-lg animate-pulse"
+      style={{
+        background: "var(--card)",
+        aspectRatio: "960 / 320",
+      }}
+    />
+  ),
+});
 
 const statusConfig: Record<AgentStatus, { label: string; color: string }> = {
   idle: { label: "空闲", color: "var(--success)" },
@@ -19,6 +34,9 @@ interface Props {
 
 export function AgentPanel({ onClose }: Props) {
   const [agents, setAgents] = useState<(Agent & { _count?: { tasks: number } })[]>([]);
+  const [highlightedAgentId, setHighlightedAgentId] = useState<string | null>(null);
+  const pixelOfficeRef = useRef<PixelOfficeHandle>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const router = useRouter();
 
   const fetchAgents = useCallback(async () => {
@@ -38,6 +56,27 @@ export function AgentPanel({ onClose }: Props) {
     const interval = setInterval(fetchAgents, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [fetchAgents]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    };
+  }, []);
+
+  const handleSpriteClick = useCallback((agentId: string) => {
+    setHighlightedAgentId(agentId);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightedAgentId(null), HIGHLIGHT_DURATION_MS);
+    const cardEl = document.querySelector(`[data-panel-agent-id="${agentId}"]`);
+    cardEl?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, []);
+
+  const handleCardClick = useCallback((agentId: string) => {
+    pixelOfficeRef.current?.highlightAgent(agentId);
+    setHighlightedAgentId(agentId);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightedAgentId(null), HIGHLIGHT_DURATION_MS);
+  }, []);
 
   return (
     <aside
@@ -62,13 +101,27 @@ export function AgentPanel({ onClose }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {/* Pixel Office */}
+        <div className="rounded-lg overflow-hidden">
+          <PixelOffice
+            ref={pixelOfficeRef}
+            agents={agents}
+            onAgentClick={handleSpriteClick}
+          />
+        </div>
+
         {agents.map((agent) => {
           const status = statusConfig[agent.status];
           return (
             <div
               key={agent.id}
-              className="p-3 rounded-lg border transition-colors"
-              style={{ borderColor: "var(--border)", background: "var(--card)" }}
+              data-panel-agent-id={agent.id}
+              onClick={() => handleCardClick(agent.id)}
+              className="p-3 rounded-lg border transition-all duration-300 cursor-pointer"
+              style={{
+                borderColor: highlightedAgentId === agent.id ? "var(--primary)" : "var(--border)",
+                background: "var(--card)",
+              }}
             >
               <div className="flex items-center gap-2">
                 <div
