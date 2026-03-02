@@ -12,7 +12,7 @@ const PixelOffice = dynamic(() => import("@/components/pixel-office/pixel-office
   ssr: false,
   loading: () => (
     <div
-      className="w-full rounded-lg animate-pulse"
+      className="w-full rounded-xl animate-pulse"
       style={{
         background: "var(--card)",
         aspectRatio: "960 / 320",
@@ -80,29 +80,45 @@ export function AgentPanel({ onClose }: Props) {
 
   return (
     <aside
-      className="w-1/2 border-l flex flex-col shrink-0 h-full"
-      style={{ borderColor: "var(--border)", background: "var(--background)" }}
+      className="w-1/2 flex flex-col shrink-0 h-full rounded-xl overflow-hidden"
+      style={{ background: "var(--kanban-bg)" }}
     >
+      {/* Header */}
       <div
-        className="h-14 px-4 border-b flex items-center justify-between shrink-0"
-        style={{ borderColor: "var(--border)" }}
+        className="px-4 py-3 flex items-center justify-between shrink-0"
+        style={{ background: "rgba(24, 24, 27, 0.5)" }}
       >
-        <h3 className="text-sm font-semibold">🤖 Agent Hub</h3>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🤖</span>
+          <h3 className="text-sm font-semibold tracking-tight">Agent Hub</h3>
+          <span
+            className="text-xs px-1.5 py-0.5 rounded-full"
+            style={{ background: "var(--border)", color: "var(--muted-foreground)" }}
+          >
+            {agents.length}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
           <SyncAgentsButton />
           <button
             onClick={onClose}
-            className="p-1 rounded text-xs transition-colors cursor-pointer"
-            style={{ color: "var(--muted-foreground)" }}
+            className="w-6 h-6 flex items-center justify-center rounded-md text-xs transition-colors cursor-pointer"
+            style={{ color: "var(--muted-foreground)", background: "var(--card)" }}
           >
             ✕
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {/* Pixel Office */}
-        <div className="rounded-lg overflow-hidden">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {/* Pixel Office with glow */}
+        <div
+          className="rounded-xl overflow-hidden ring-1"
+          style={{
+            boxShadow: "0 0 20px rgba(99, 102, 241, 0.08)",
+            ringColor: "rgba(99, 102, 241, 0.2)",
+          }}
+        >
           <PixelOffice
             ref={pixelOfficeRef}
             agents={agents}
@@ -110,78 +126,100 @@ export function AgentPanel({ onClose }: Props) {
           />
         </div>
 
+        {/* Section Label */}
+        <div className="flex items-center gap-2 px-1">
+          <span
+            className="text-xs font-medium uppercase tracking-wider"
+            style={{ color: "var(--muted)" }}
+          >
+            Agent 列表
+          </span>
+          <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+        </div>
+
+        {/* Agent Cards */}
         {agents.map((agent) => {
           const status = statusConfig[agent.status];
+          const isHighlighted = highlightedAgentId === agent.id;
           return (
             <div
               key={agent.id}
               data-panel-agent-id={agent.id}
               onClick={() => handleCardClick(agent.id)}
-              className="p-3 rounded-lg border transition-all duration-300 cursor-pointer"
+              className="relative rounded-xl border overflow-hidden transition-all duration-300 cursor-pointer group"
               style={{
-                borderColor: highlightedAgentId === agent.id ? "var(--primary)" : "var(--border)",
+                borderColor: isHighlighted ? "var(--primary)" : "var(--border)",
                 background: "var(--card)",
+                boxShadow: isHighlighted ? "0 0 12px rgba(99, 102, 241, 0.15)" : "none",
               }}
             >
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
-                  style={{ background: "var(--background)" }}
-                >
-                  {agent.emoji || "🤖"}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium truncate">{agent.name}</h4>
-                    <div className="flex items-center gap-1 shrink-0 ml-2">
+              {/* Left status bar */}
+              <div
+                className="absolute left-0 top-0 bottom-0 w-[3px]"
+                style={{ background: status.color }}
+              />
+
+              <div className="p-3 pl-4">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-sm shrink-0"
+                    style={{ background: "var(--background)" }}
+                  >
+                    {agent.emoji || "🤖"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium truncate">{agent.name}</h4>
                       <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: status.color }}
-                      />
-                      <span className="text-xs" style={{ color: status.color }}>
+                        className="text-xs px-2 py-0.5 rounded-full shrink-0 ml-2"
+                        style={{
+                          background: `color-mix(in srgb, ${status.color} 15%, transparent)`,
+                          color: status.color,
+                        }}
+                      >
                         {status.label}
                       </span>
                     </div>
+                    <p
+                      className="text-xs truncate mt-0.5"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {agent.description}
+                    </p>
                   </div>
-                  <p
-                    className="text-xs truncate mt-0.5"
-                    style={{ color: "var(--muted-foreground)" }}
-                  >
-                    {agent.description}
-                  </p>
                 </div>
-              </div>
 
-              {agent.capabilities.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {agent.capabilities.slice(0, 3).map((cap) => (
-                    <span
-                      key={cap}
-                      className="text-xs px-1.5 py-0.5 rounded"
-                      style={{ background: "var(--background)", color: "var(--muted-foreground)" }}
-                    >
-                      {cap}
-                    </span>
-                  ))}
-                  {agent.capabilities.length > 3 && (
-                    <span
-                      className="text-xs px-1.5 py-0.5"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      +{agent.capabilities.length - 3}
-                    </span>
+                {agent.capabilities.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap gap-1 pl-[46px]">
+                    {agent.capabilities.slice(0, 4).map((cap) => (
+                      <span
+                        key={cap}
+                        className="text-xs px-2 py-0.5 rounded-md"
+                        style={{ background: "var(--background)", color: "var(--muted-foreground)" }}
+                      >
+                        {cap}
+                      </span>
+                    ))}
+                    {agent.capabilities.length > 4 && (
+                      <span
+                        className="text-xs px-2 py-0.5"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        +{agent.capabilities.length - 4}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <div
+                  className="mt-2 flex items-center justify-between text-xs pl-[46px]"
+                  style={{ color: "var(--muted)" }}
+                >
+                  <span>任务: {agent._count?.tasks ?? 0}</span>
+                  {agent.lastHeartbeat && (
+                    <span>{new Date(agent.lastHeartbeat).toLocaleTimeString("zh-CN")}</span>
                   )}
                 </div>
-              )}
-
-              <div
-                className="mt-2 text-xs flex items-center justify-between"
-                style={{ color: "var(--muted)" }}
-              >
-                <span>任务: {agent._count?.tasks ?? 0}</span>
-                {agent.lastHeartbeat && (
-                  <span>{new Date(agent.lastHeartbeat).toLocaleTimeString("zh-CN")}</span>
-                )}
               </div>
             </div>
           );
@@ -189,19 +227,24 @@ export function AgentPanel({ onClose }: Props) {
 
         {agents.length === 0 && (
           <div
-            className="text-center py-8 text-sm"
-            style={{ color: "var(--muted)" }}
+            className="text-center py-12 text-sm rounded-xl"
+            style={{ color: "var(--muted)", background: "var(--card)" }}
           >
             暂无 Agent
           </div>
         )}
       </div>
 
-      <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
+      {/* Footer */}
+      <div className="p-3" style={{ background: "rgba(24, 24, 27, 0.5)" }}>
         <button
           onClick={() => router.push("/agents")}
-          className="w-full text-xs py-2 rounded-md transition-colors cursor-pointer"
-          style={{ color: "var(--muted-foreground)", background: "var(--card)" }}
+          className="w-full text-xs py-2.5 rounded-lg transition-all duration-200 cursor-pointer font-medium"
+          style={{
+            color: "var(--muted-foreground)",
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+          }}
         >
           查看完整 Agent 中心 →
         </button>

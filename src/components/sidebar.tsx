@@ -44,7 +44,7 @@ export function Sidebar() {
 
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
         <div
-          className="px-2 py-1 text-xs font-medium uppercase tracking-wider"
+          className="px-2 py-1.5 text-xs font-medium uppercase tracking-wider"
           style={{ color: "var(--muted)" }}
         >
           工作区
@@ -54,11 +54,12 @@ export function Sidebar() {
             key={ws.id}
             onClick={() => router.push(`/workspace/${ws.id}`)}
             className={cn(
-              "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors cursor-pointer"
+              "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 cursor-pointer"
             )}
             style={{
               background: activeId === ws.id ? "var(--card)" : "transparent",
               color: activeId === ws.id ? "var(--foreground)" : "var(--muted-foreground)",
+              borderLeft: activeId === ws.id ? "2px solid var(--primary)" : "2px solid transparent",
             }}
           >
             <span>{ws.icon}</span>
@@ -67,7 +68,7 @@ export function Sidebar() {
         ))}
         <button
           onClick={() => setDialogOpen(true)}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors cursor-pointer"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer"
           style={{ color: "var(--muted)" }}
         >
           <span>+</span>
@@ -75,14 +76,17 @@ export function Sidebar() {
         </button>
       </nav>
 
-      <div className="p-4 border-t" style={{ borderColor: "var(--border)" }}>
+      <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
         <button
           onClick={() => router.push("/agents")}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors cursor-pointer"
-          style={{ color: "var(--muted-foreground)" }}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 cursor-pointer"
+          style={{
+            color: "var(--muted-foreground)",
+            background: "var(--card)",
+          }}
         >
           <span>🤖</span>
-          <span>Agent 中心</span>
+          <span className="font-medium">Agent 中心</span>
         </button>
       </div>
 

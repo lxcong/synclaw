@@ -26,7 +26,7 @@ export function TaskCard({ task, onClick }: Props) {
     transition,
     opacity: isDragging ? 0.5 : 1,
     borderColor: "var(--border)",
-    background: "var(--background)",
+    background: "var(--card)",
   };
 
   return (
@@ -36,7 +36,7 @@ export function TaskCard({ task, onClick }: Props) {
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className="p-3 rounded-md border transition-colors cursor-pointer hover:border-[var(--border-hover)]"
+      className="p-3 rounded-lg border transition-all duration-200 cursor-pointer hover:border-[var(--border-hover)] hover:shadow-sm hover:shadow-black/20"
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-medium leading-snug">{task.title}</h3>
@@ -50,23 +50,23 @@ export function TaskCard({ task, onClick }: Props) {
 
       {task.description && (
         <p
-          className="mt-1 text-xs leading-relaxed line-clamp-2"
+          className="mt-1.5 text-xs leading-relaxed line-clamp-2"
           style={{ color: "var(--muted-foreground)" }}
         >
           {task.description}
         </p>
       )}
 
-      <div className="mt-2 flex items-center justify-between">
-        {task.assignedAgent && (
+      {task.assignedAgent && (
+        <div className="mt-2">
           <span
-            className="text-xs px-1.5 py-0.5 rounded"
-            style={{ background: "var(--card)", color: "var(--muted-foreground)" }}
+            className="text-xs px-2 py-0.5 rounded-md inline-flex items-center gap-1"
+            style={{ background: "var(--background)", color: "var(--muted-foreground)" }}
           >
             🤖 {task.assignedAgent.name}
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

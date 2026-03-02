@@ -64,12 +64,10 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.status === newStatus) return;
 
-    // Optimistic update
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
     );
 
-    // Persist
     await fetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -111,29 +109,36 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
         onToggleAgentPanel={() => setAgentPanelOpen((v) => !v)}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
+      <div className="flex-1 flex overflow-hidden p-3 gap-3">
+        {/* Kanban Area */}
+        <div
+          className={`${agentPanelOpen ? "w-1/2" : "flex-1"} flex flex-col rounded-xl overflow-hidden transition-all duration-300`}
+          style={{ background: "var(--kanban-bg)" }}
         >
-          <div className={`${agentPanelOpen ? "w-1/2" : "flex-1"} flex overflow-x-auto p-4 gap-4`}>
-            {TASK_STATUSES.map((status) => (
-              <KanbanColumn
-                key={status}
-                status={status}
-                tasks={tasks.filter((t) => t.status === status)}
-                onTaskClick={handleTaskClick}
-              />
-            ))}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex-1 flex overflow-x-auto p-3 gap-3">
+              {TASK_STATUSES.map((status) => (
+                <KanbanColumn
+                  key={status}
+                  status={status}
+                  tasks={tasks.filter((t) => t.status === status)}
+                  onTaskClick={handleTaskClick}
+                />
+              ))}
+            </div>
 
-          <DragOverlay>
-            {activeTask ? <TaskCard task={activeTask} onClick={() => {}} /> : null}
-          </DragOverlay>
-        </DndContext>
+            <DragOverlay>
+              {activeTask ? <TaskCard task={activeTask} onClick={() => {}} /> : null}
+            </DragOverlay>
+          </DndContext>
+        </div>
 
+        {/* Agent Panel */}
         {agentPanelOpen && (
           <AgentPanel onClose={() => setAgentPanelOpen(false)} />
         )}
