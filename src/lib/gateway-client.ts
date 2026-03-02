@@ -13,6 +13,7 @@ export interface AgentEvent {
   stream: string; // "lifecycle" | "tool" | "assistant" | "error"
   ts: number;
   data: Record<string, unknown>;
+  sessionKey?: string;
 }
 
 export interface RunSubscriber {
@@ -214,6 +215,7 @@ export class GatewayClient {
 
   private pendingRequests = new Map<string, PendingRequest>();
   private subscribers = new Map<string, RunSubscriber[]>();
+  private globalListeners = new Set<(event: AgentEvent) => void>();
 
   /** Ed25519 device identity for Gateway authentication. */
   private deviceIdentity: DeviceIdentity;
@@ -307,6 +309,14 @@ export class GatewayClient {
     const idx = list.indexOf(subscriber);
     if (idx !== -1) list.splice(idx, 1);
     if (list.length === 0) this.subscribers.delete(runId);
+  }
+
+  /** Register a global listener for all agent events. Returns an unsubscribe function. */
+  onAgentEvent(listener: (event: AgentEvent) => void): () => void {
+    this.globalListeners.add(listener);
+    return () => {
+      this.globalListeners.delete(listener);
+    };
   }
 
   /** Whether the client has an active, handshake-completed connection. */
@@ -611,16 +621,23 @@ export class GatewayClient {
     const runId = frame.payload.runId as string | undefined;
     if (!runId) return;
 
-    const subs = this.subscribers.get(runId);
-    if (!subs) return;
-
     const event: AgentEvent = {
       runId,
       seq: (frame.payload.seq as number) ?? 0,
       stream: (frame.payload.stream as string) ?? "unknown",
       ts: (frame.payload.ts as number) ?? Date.now(),
       data: (frame.payload.data as Record<string, unknown>) ?? {},
+      sessionKey: (frame.payload.sessionKey as string) ?? undefined,
     };
+
+    // Notify global listeners (for auto-tracking unknown runs, etc.)
+    for (const listener of this.globalListeners) {
+      listener(event);
+    }
+
+    // Notify per-runId subscribers
+    const subs = this.subscribers.get(runId);
+    if (!subs) return;
 
     for (const sub of [...subs]) {
       sub.onEvent(event);

@@ -42,6 +42,8 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
 
   useEffect(() => {
     fetchTasks();
+    const interval = setInterval(fetchTasks, 5_000);
+    return () => clearInterval(interval);
   }, [fetchTasks]);
 
   function handleDragStart(event: DragStartEvent) {
