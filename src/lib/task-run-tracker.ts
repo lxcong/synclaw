@@ -16,6 +16,10 @@ export function trackTaskRun(taskId: string, runId: string, agentId: string): vo
 
     async onComplete(_runId: string, payload: unknown) {
       try {
+        // Guard: skip if task is already done (another handler may have completed it)
+        const current = await prisma.task.findUnique({ where: { id: taskId } });
+        if (!current || current.status === "done") return;
+
         const content = typeof payload === "string"
           ? payload
           : JSON.stringify(payload);
@@ -42,6 +46,9 @@ export function trackTaskRun(taskId: string, runId: string, agentId: string): vo
 
     async onError(_runId: string, error: { code: number; message: string }) {
       try {
+        const current = await prisma.task.findUnique({ where: { id: taskId } });
+        if (!current || current.status === "done") return;
+
         await prisma.thoughtEntry.create({
           data: {
             taskId,

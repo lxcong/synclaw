@@ -21,6 +21,15 @@ function parseAgentIdFromSessionKey(sessionKey: string | undefined): string | nu
   return match ? match[1] : null;
 }
 
+/**
+ * Parse task ID from a sessionKey like "agent:{agentId}:syncclaw:{taskId}"
+ */
+function parseTaskIdFromSessionKey(sessionKey: string | undefined): string | null {
+  if (!sessionKey) return null;
+  const match = sessionKey.match(/:syncclaw:(.+)$/);
+  return match ? match[1] : null;
+}
+
 let cachedDefaultWorkspaceId: string | null = null;
 
 async function getDefaultWorkspaceId(): Promise<string> {
@@ -70,6 +79,17 @@ async function ensureTaskForRun(
         knownRunIds.add(runId);
         runIdToTaskId.set(runId, existing.id);
         return existing.id;
+      }
+
+      // 3b. Check if sessionKey references a parent task (sub-run detection)
+      const parentTaskId = parseTaskIdFromSessionKey(event.sessionKey);
+      if (parentTaskId) {
+        const parentTask = await prisma.task.findUnique({ where: { id: parentTaskId } });
+        if (parentTask) {
+          knownRunIds.add(runId);
+          runIdToTaskId.set(runId, parentTask.id);
+          return parentTask.id;
+        }
       }
 
       // 4. Resolve agent

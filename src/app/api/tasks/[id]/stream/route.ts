@@ -142,6 +142,13 @@ export async function GET(
           if (cancelled) return;
 
           try {
+            // Guard: skip DB writes if task is already done (trackTaskRun handles persistence)
+            const current = await prisma.task.findUnique({ where: { id: taskId } });
+            if (current && current.status === "done") {
+              send("status_change", { status: "done" });
+              return;
+            }
+
             // Extract meaningful text from the run result.
             // Priority: accumulated assistant text > payload message content > raw payload
             let content = accumulatedAssistantText.trim();
@@ -198,7 +205,12 @@ export async function GET(
           if (cancelled) return;
 
           try {
-            // Save error as ThoughtEntry
+            const current = await prisma.task.findUnique({ where: { id: taskId } });
+            if (current && current.status === "done") {
+              send("status_change", { status: "done" });
+              return;
+            }
+
             const thought = await prisma.thoughtEntry.create({
               data: {
                 taskId,
@@ -210,7 +222,6 @@ export async function GET(
 
             send("thought", thought);
 
-            // Update task status to done on error
             await prisma.task.update({
               where: { id: taskId },
               data: { status: "done" },
