@@ -131,6 +131,31 @@ async function ensureTaskForRun(
 
 const runAssistantText = new Map<string, string>();
 
+// Track runs whose title has already been refined from assistant text
+const titleUpdatedRuns = new Set<string>();
+
+/**
+ * Derive a concise task title from assistant response text.
+ * Strips markdown formatting, takes the first meaningful line, and truncates.
+ */
+function deriveTitle(text: string, agentName: string, maxLen = 50): string {
+  const cleaned = text
+    .replace(/^#+\s*/gm, "")       // strip markdown headings
+    .replace(/\*\*|__/g, "")       // strip bold
+    .replace(/\*|_/g, "")          // strip italic
+    .replace(/`[^`]*`/g, "")       // strip inline code
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // [text](url) → text
+    .replace(/\n+/g, " ")          // collapse newlines
+    .trim();
+
+  if (!cleaned) return `External Task [${agentName}]`;
+
+  const truncated =
+    cleaned.length > maxLen ? cleaned.slice(0, maxLen) + "…" : cleaned;
+
+  return `[${agentName}] ${truncated}`;
+}
+
 // ---------------------------------------------------------------------------
 // Global event handler
 // ---------------------------------------------------------------------------
@@ -178,6 +203,7 @@ export async function handleGlobalAgentEvent(event: AgentEvent): Promise<void> {
           });
         }
         runAssistantText.delete(runId);
+        titleUpdatedRuns.delete(runId);
       } else if (phase === "error" && agentId) {
         const errorContent =
           (event.data.error as string) ?? "Unknown lifecycle error";
@@ -189,6 +215,7 @@ export async function handleGlobalAgentEvent(event: AgentEvent): Promise<void> {
           data: { status: "done" },
         });
         runAssistantText.delete(runId);
+        titleUpdatedRuns.delete(runId);
       }
       break;
     }
@@ -198,6 +225,22 @@ export async function handleGlobalAgentEvent(event: AgentEvent): Promise<void> {
       const text = (event.data.text as string) ?? "";
       if (text) {
         runAssistantText.set(runId, text);
+
+        // Refine the generic title once we have enough response text
+        if (!titleUpdatedRuns.has(runId) && text.length >= 20) {
+          titleUpdatedRuns.add(runId);
+          const agentId2 = parseAgentIdFromSessionKey(event.sessionKey);
+          let agentName = "Agent";
+          if (agentId2) {
+            const agent = await prisma.agent.findUnique({ where: { id: agentId2 } });
+            if (agent) agentName = agent.name;
+          }
+          const title = deriveTitle(text, agentName);
+          await prisma.task.update({
+            where: { id: taskId },
+            data: { title },
+          });
+        }
       }
       break;
     }
