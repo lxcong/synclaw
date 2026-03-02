@@ -510,6 +510,14 @@ export class GatewayClient {
         } else {
           const errorMsg = responseFrame.error?.message ?? "Connect rejected";
           console.error("[GatewayClient] Connect handshake failed:", errorMsg);
+          // Auth errors are permanent — stop reconnecting
+          this.intentionalClose = true;
+          if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+          }
+          this.connected = false;
+          this.connecting = false;
           if (this.helloReject) {
             this.helloReject(new Error(errorMsg));
             this.helloResolve = null;
