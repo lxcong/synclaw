@@ -45,3 +45,4 @@ generated/
 .vscode/
 *.swp
 *.swo
+.claude/worktrees/
