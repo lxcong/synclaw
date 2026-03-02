@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -9,8 +8,6 @@ interface Props {
 }
 
 export function TopBar({ title, onNewTask }: Props) {
-  const router = useRouter();
-
   return (
     <header
       className="h-14 px-6 border-b flex items-center justify-between shrink-0"
@@ -18,15 +15,6 @@ export function TopBar({ title, onNewTask }: Props) {
     >
       <h2 className="text-lg font-semibold">{title}</h2>
       <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push("/agents")}
-          className="text-sm cursor-pointer"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          🤖 Agent Hub
-        </Button>
         {onNewTask && (
           <Button
             size="sm"

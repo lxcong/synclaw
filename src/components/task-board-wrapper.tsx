@@ -18,6 +18,7 @@ import { KanbanColumn } from "./kanban-column";
 import { TaskCard } from "./task-card";
 import { CreateTaskDialog } from "./create-task-dialog";
 import { TaskInspector } from "./task-inspector";
+import { AgentSection } from "./agent-section";
 
 interface Props {
   workspaceId: string;
@@ -102,27 +103,36 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
     <>
       <TopBar title={workspaceName} onNewTask={() => setCreateDialogOpen(true)} />
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex-1 flex overflow-x-auto p-4 gap-4">
-          {TASK_STATUSES.map((status) => (
-            <KanbanColumn
-              key={status}
-              status={status}
-              tasks={tasks.filter((t) => t.status === status)}
-              onTaskClick={handleTaskClick}
-            />
-          ))}
-        </div>
+      <div className="flex-1 overflow-y-auto">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex overflow-x-auto p-4 gap-4" style={{ minHeight: "320px" }}>
+            {TASK_STATUSES.map((status) => (
+              <KanbanColumn
+                key={status}
+                status={status}
+                tasks={tasks.filter((t) => t.status === status)}
+                onTaskClick={handleTaskClick}
+              />
+            ))}
+          </div>
 
-        <DragOverlay>
-          {activeTask ? <TaskCard task={activeTask} onClick={() => {}} /> : null}
-        </DragOverlay>
-      </DndContext>
+          <DragOverlay>
+            {activeTask ? <TaskCard task={activeTask} onClick={() => {}} /> : null}
+          </DragOverlay>
+        </DndContext>
+
+        <div
+          className="border-t"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <AgentSection />
+        </div>
+      </div>
 
       <TaskInspector
         task={inspectedTask}

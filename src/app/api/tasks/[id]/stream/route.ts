@@ -62,6 +62,8 @@ export async function GET(
   const runId = task.runId;
   const agentId = task.assignedAgentId;
   let cancelled = false;
+  // Accumulate assistant text during streaming (mirrors TUI's TuiStreamAssembler)
+  let accumulatedAssistantText = "";
 
   let cleanupFn: (() => void) | null = null;
 
@@ -140,16 +142,38 @@ export async function GET(
           if (cancelled) return;
 
           try {
-            // Save TaskResult to DB
-            const content = typeof payload === "string"
-              ? payload
-              : JSON.stringify(payload);
+            // Extract meaningful text from the run result.
+            // Priority: accumulated assistant text > payload message content > raw payload
+            let content = accumulatedAssistantText.trim();
+
+            if (!content) {
+              // Try to extract text from payload message (OpenClaw chat event format)
+              const p = payload as Record<string, unknown> | null;
+              const msg = p?.message as Record<string, unknown> | undefined;
+              if (msg) {
+                if (Array.isArray(msg.content)) {
+                  content = (msg.content as Array<Record<string, unknown>>)
+                    .filter((b) => b.type === "text" && typeof b.text === "string")
+                    .map((b) => b.text as string)
+                    .join("\n")
+                    .trim();
+                } else if (typeof msg.content === "string") {
+                  content = msg.content;
+                }
+              }
+            }
+
+            if (!content) {
+              content = typeof payload === "string"
+                ? payload
+                : JSON.stringify(payload, null, 2);
+            }
 
             const result = await prisma.taskResult.create({
               data: {
                 taskId,
                 type: "text",
-                title: "Execution Result",
+                title: "执行结果",
                 content,
               },
             });
@@ -233,6 +257,8 @@ export async function GET(
       async function handleAssistantEvent(data: Record<string, unknown>) {
         const delta = (data.delta as string) ?? (data.text as string) ?? "";
         if (!delta) return;
+
+        accumulatedAssistantText += delta;
 
         const thought = await prisma.thoughtEntry.create({
           data: {

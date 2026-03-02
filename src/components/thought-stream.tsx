@@ -144,12 +144,38 @@ const blockRenderers: Record<string, React.ComponentType<{ thought: ThoughtEntry
   error: ErrorBlock,
 };
 
+/**
+ * Merge consecutive thinking blocks into a single entry.
+ * Mirrors how OpenClaw TUI's TuiStreamAssembler accumulates text.
+ */
+function mergeConsecutiveThoughts(thoughts: ThoughtEntry[]): ThoughtEntry[] {
+  const merged: ThoughtEntry[] = [];
+  for (const thought of thoughts) {
+    const prev = merged[merged.length - 1];
+    if (
+      prev &&
+      prev.type === "thinking" &&
+      thought.type === "thinking"
+    ) {
+      merged[merged.length - 1] = {
+        ...prev,
+        content: prev.content + thought.content,
+      };
+    } else {
+      merged.push(thought);
+    }
+  }
+  return merged;
+}
+
 export function ThoughtStream({ thoughts, connected }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [thoughts.length]);
+
+  const displayThoughts = mergeConsecutiveThoughts(thoughts);
 
   return (
     <div className="flex flex-col h-full">
@@ -161,12 +187,12 @@ export function ThoughtStream({ thoughts, connected }: Props) {
       </div>
       <ScrollArea className="flex-1">
         <div className="space-y-2 pr-4">
-          {thoughts.length === 0 && (
+          {displayThoughts.length === 0 && (
             <p className="text-xs" style={{ color: "var(--muted)" }}>
               {"等待 Agent 开始执行..."}
             </p>
           )}
-          {thoughts.map((thought) => {
+          {displayThoughts.map((thought) => {
             const Block = blockRenderers[thought.type] ?? ThinkingBlock;
             return <Block key={thought.id} thought={thought} />;
           })}

@@ -24,12 +24,20 @@ export function AgentCard({ agent }: Props) {
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
-            style={{ background: "var(--background)" }}
-          >
-            {agent.emoji || "🤖"}
-          </div>
+          {agent.avatarUrl ? (
+            <img
+              src={agent.avatarUrl}
+              alt={agent.name}
+              className="w-10 h-10 rounded-full object-cover"
+            />
+          ) : (
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
+              style={{ background: "var(--background)" }}
+            >
+              {agent.emoji || "🤖"}
+            </div>
+          )}
           <div>
             <h3 className="text-sm font-medium">{agent.name}</h3>
             <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>

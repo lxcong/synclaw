@@ -34,36 +34,52 @@ interface GatewayFileResult {
 }
 
 /**
- * Extract a short description from SOUL.md content.
- * Takes the first non-empty, non-heading line (up to 200 chars).
+ * Parse IDENTITY.md content into key-value pairs.
+ * Format: `- **Key:** Value` per line.
  */
-function extractDescription(content: string): string {
-  const lines = content.split("\n");
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed && !trimmed.startsWith("#") && !trimmed.startsWith("---")) {
-      return trimmed.length > 200 ? `${trimmed.slice(0, 197)}...` : trimmed;
+function parseIdentityMarkdown(content: string): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const line of content.split("\n")) {
+    const match = line.match(/^-\s*\*{0,2}(.+?)\*{0,2}:\s*(.+)$/);
+    if (match) {
+      const key = match[1].replace(/\*/g, "").trim().toLowerCase();
+      const value = match[2].trim();
+      if (value) fields[key] = value;
     }
   }
-  return "";
+  return fields;
 }
 
 /**
- * Fetch SOUL.md for an agent from Gateway. Returns empty string on failure.
+ * Build a short description from IDENTITY.md fields.
  */
-async function fetchAgentDescription(agentId: string): Promise<string> {
+function buildDescriptionFromIdentity(fields: Record<string, string>): string {
+  const parts: string[] = [];
+  if (fields.creature) parts.push(fields.creature);
+  if (fields.vibe) parts.push(fields.vibe);
+  return parts.join(" · ") || "";
+}
+
+/**
+ * Fetch IDENTITY.md for an agent from Gateway. Returns parsed identity fields.
+ */
+async function fetchAgentIdentity(agentId: string): Promise<{ description: string; emoji: string | null }> {
   try {
     const result = (await gatewayClient.request("agents.files.get", {
       agentId,
-      name: "SOUL.md",
+      name: "IDENTITY.md",
     })) as GatewayFileResult;
 
     if (result.file.missing || !result.file.content) {
-      return "";
+      return { description: "", emoji: null };
     }
-    return extractDescription(result.file.content);
+    const fields = parseIdentityMarkdown(result.file.content);
+    return {
+      description: buildDescriptionFromIdentity(fields),
+      emoji: fields.emoji || null,
+    };
   } catch {
-    return "";
+    return { description: "", emoji: null };
   }
 }
 
@@ -89,40 +105,48 @@ export async function syncAgentsFromGateway(forceSync = false) {
   if (!forceSync && Date.now() - lastSyncMs < SYNC_INTERVAL_MS) {
     return getAgentsWithInferredStatus();
   }
-  const result = (await gatewayClient.request(
-    "agents.list",
-    {}
-  )) as GatewayAgentListResult;
+
+  let result: GatewayAgentListResult;
+  try {
+    result = (await gatewayClient.request(
+      "agents.list",
+      {}
+    )) as GatewayAgentListResult;
+  } catch {
+    // Gateway unavailable — return local DB data
+    return getAgentsWithInferredStatus();
+  }
 
   const gatewayAgentIds = new Set<string>();
 
-  // Fetch descriptions in parallel
-  const descriptionPromises = result.agents.map(async (ga) => {
-    const description = await fetchAgentDescription(ga.id);
-    return { ...ga, description };
+  // Fetch identity from IDENTITY.md in parallel
+  const identityPromises = result.agents.map(async (ga) => {
+    const identity = await fetchAgentIdentity(ga.id);
+    return { ...ga, parsedIdentity: identity };
   });
-  const agentsWithDescriptions = await Promise.all(descriptionPromises);
+  const agentsWithIdentity = await Promise.all(identityPromises);
 
   // Upsert each agent
-  for (const ga of agentsWithDescriptions) {
+  for (const ga of agentsWithIdentity) {
     gatewayAgentIds.add(ga.id);
     const name = ga.identity?.name || ga.name || ga.id;
-    const emoji = ga.identity?.emoji || null;
+    const emoji = ga.identity?.emoji || ga.parsedIdentity.emoji || null;
     const avatarUrl = ga.identity?.avatarUrl || null;
+    const description = ga.parsedIdentity.description;
 
     await prisma.agent.upsert({
       where: { id: ga.id },
       create: {
         id: ga.id,
         name,
-        description: ga.description,
+        description,
         emoji,
         avatarUrl,
         capabilities: "[]",
       },
       update: {
         name,
-        description: ga.description,
+        description,
         emoji,
         avatarUrl,
       },

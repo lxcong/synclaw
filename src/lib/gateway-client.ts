@@ -236,7 +236,9 @@ export class GatewayClient {
   async connect(): Promise<void> {
     if (this.connected) return;
     if (this.connecting && this.helloPromise) return this.helloPromise;
-    if (this.fatalError) return; // Don't reconnect after auth failures
+    if (this.fatalError) {
+      throw new Error("Gateway connection failed with a non-retriable error (e.g. auth failure)");
+    }
     this.intentionalClose = false;
     return this._connect();
   }
