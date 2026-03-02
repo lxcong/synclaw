@@ -92,11 +92,11 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
     setInspectedTask(task);
   }
 
-  function handleTaskUpdate(updatedTask: Task) {
+  const handleTaskUpdate = useCallback((updatedTask: Task) => {
     setTasks((prev) =>
       prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
     );
-  }
+  }, []);
 
   return (
     <>

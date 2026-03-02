@@ -24,14 +24,16 @@ test.describe("API Routes", () => {
     expect(ws.id).toBeTruthy();
   });
 
-  test("GET /api/agents returns agents with capabilities parsed", async ({ request }) => {
+  test("GET /api/agents returns agent list", async ({ request }) => {
     const res = await request.get(`${BASE}/api/agents`);
     expect(res.status()).toBe(200);
     const data = await res.json();
-    expect(data.length).toBeGreaterThanOrEqual(3);
-    // Capabilities should be an array, not a JSON string
-    expect(Array.isArray(data[0].capabilities)).toBe(true);
-    expect(data[0]).toHaveProperty("_count");
+    expect(Array.isArray(data)).toBe(true);
+    // If agents exist (Gateway connected), verify shape
+    if (data.length > 0) {
+      expect(Array.isArray(data[0].capabilities)).toBe(true);
+      expect(data[0]).toHaveProperty("_count");
+    }
   });
 
   test("GET /api/workspaces/[id]/tasks returns tasks for workspace", async ({ request }) => {

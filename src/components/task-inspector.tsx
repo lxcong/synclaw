@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import type { Task } from "@/types";
 import { STATUS_CONFIG } from "@/types";
 import { useTaskStream } from "@/hooks/use-task-stream";
@@ -19,10 +20,19 @@ interface Props {
   onTaskUpdate: (task: Task) => void;
 }
 
-export function TaskInspector({ task, onClose }: Props) {
+export function TaskInspector({ task, onClose, onTaskUpdate }: Props) {
   const stream = useTaskStream(task?.id ?? null);
+  const prevStatusRef = useRef(stream.status);
 
   const effectiveStatus = stream.status ?? task?.status;
+
+  // Sync stream status changes back to the kanban board
+  useEffect(() => {
+    if (task && stream.status && stream.status !== prevStatusRef.current) {
+      prevStatusRef.current = stream.status;
+      onTaskUpdate({ ...task, status: stream.status });
+    }
+  }, [task, stream.status, onTaskUpdate]);
 
   return (
     <Sheet open={!!task} onOpenChange={(open) => !open && onClose()}>
