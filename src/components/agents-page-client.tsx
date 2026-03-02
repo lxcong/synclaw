@@ -74,7 +74,7 @@ export function AgentsPageClient({ initialAgents }: Props) {
         className="h-14 px-6 border-b flex items-center shrink-0"
         style={{ borderColor: "var(--border)" }}
       >
-        <h2 className="text-lg font-semibold">Agent 中心</h2>
+        <h2 className="text-lg font-semibold">🤖 Agent 中心</h2>
       </header>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
