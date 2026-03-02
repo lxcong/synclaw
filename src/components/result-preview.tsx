@@ -1,12 +1,14 @@
 "use client";
 
 import type { TaskResult } from "@/types";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const typeIcon: Record<string, string> = {
-  text: "\u{1F4C4}",
-  file: "\u{1F4CE}",
-  link: "\u{1F517}",
-  email_draft: "\u2709\uFE0F",
+  text: "📄",
+  file: "📎",
+  link: "🔗",
+  email_draft: "✉️",
 };
 
 interface Props {
@@ -18,7 +20,7 @@ export function ResultPreview({ results }: Props) {
 
   return (
     <div>
-      <h3 className="text-sm font-medium mb-3">{"\u6267\u884C\u6210\u679C"}</h3>
+      <h3 className="text-sm font-medium mb-3">{"执行成果"}</h3>
       <div className="space-y-2">
         {results.map((result) => (
           <div
@@ -26,22 +28,22 @@ export function ResultPreview({ results }: Props) {
             className="p-3 rounded-md border"
             style={{ borderColor: "var(--border)", background: "var(--card)" }}
           >
-            <div className="flex items-center gap-2 mb-1">
-              <span>{typeIcon[result.type] ?? "\u{1F4C4}"}</span>
+            <div className="flex items-center gap-2 mb-2">
+              <span>{typeIcon[result.type] ?? "📄"}</span>
               <span className="text-sm font-medium">{result.title}</span>
             </div>
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-              {result.content}
-            </p>
+            <div className="markdown-body text-xs">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.content}</ReactMarkdown>
+            </div>
             {result.url && (
               <a
                 href={result.url}
-                className="text-xs mt-1 inline-block"
+                className="text-xs mt-2 inline-block"
                 style={{ color: "var(--primary)" }}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                {"\u67E5\u770B\u94FE\u63A5 \u2192"}
+                {"查看链接 →"}
               </a>
             )}
           </div>
