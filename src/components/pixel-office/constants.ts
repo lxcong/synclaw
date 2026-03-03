@@ -1,12 +1,12 @@
 import type { AgentStatus } from "@/types";
 
-/** Canvas dimensions */
-export const CANVAS_WIDTH = 960;
-export const CANVAS_HEIGHT = 320;
+/** Canvas dimensions (match office_design_1.png) */
+export const CANVAS_WIDTH = 416;
+export const CANVAS_HEIGHT = 384;
 
 /** Sprite configuration */
 export const SPRITE_FRAME_SIZE = 32;
-export const SPRITE_SCALE = 3;
+export const SPRITE_SCALE = 2;
 export const SPRITE_FRAME_COUNT = 8;
 export const SPRITE_FRAME_RATE = 8;
 
@@ -33,14 +33,14 @@ export interface AreaBounds {
 }
 
 export const OFFICE_AREAS: Record<Exclude<AgentStatus, "offline">, AreaBounds> = {
-  busy: { x1: 100, y1: 100, x2: 350, y2: 260, label: "工作区" },
-  idle: { x1: 380, y1: 100, x2: 580, y2: 260, label: "休息区" },
-  error: { x1: 620, y1: 100, x2: 860, y2: 260, label: "服务器区" },
+  busy: { x1: 230, y1: 40, x2: 390, y2: 170, label: "工作区" },
+  idle: { x1: 15, y1: 190, x2: 150, y2: 320, label: "休息区" },
+  error: { x1: 230, y1: 220, x2: 390, y2: 355, label: "服务器区" },
 };
 
 /** Offline agents appear near the door, semi-transparent */
 export const DOOR_AREA: AreaBounds = {
-  x1: 870, y1: 180, x2: 940, y2: 280, label: "门口",
+  x1: 195, y1: 200, x2: 225, y2: 280, label: "门口",
 };
 
 /** Polling interval in milliseconds */

@@ -44,7 +44,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image("office_bg", "/pixel-assets/office-bg.png");
+    this.load.image("office_bg", "/pixel-assets/office_design_1.png");
 
     for (let i = 1; i <= CHARACTER_VARIANTS; i++) {
       this.load.spritesheet(`guest_anim_${i}`, `/pixel-assets/guest_anim_${i}.png`, {
@@ -59,25 +59,6 @@ export class OfficeScene extends Phaser.Scene {
     const bg = this.add.image(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, "office_bg");
     bg.setDisplaySize(CANVAS_WIDTH, CANVAS_HEIGHT);
     bg.setDepth(DEPTH.BACKGROUND);
-
-    // Area labels
-    const labelStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-      fontSize: "11px",
-      color: "#71717a",
-      fontFamily: "monospace",
-    };
-    this.add.text(180, 70, "\u5DE5\u4F5C\u533A", labelStyle).setDepth(DEPTH.FURNITURE).setOrigin(0.5);
-    this.add.text(480, 70, "\u4F11\u606F\u533A", labelStyle).setDepth(DEPTH.FURNITURE).setOrigin(0.5);
-    this.add.text(740, 70, "\u670D\u52A1\u5668\u533A", labelStyle).setDepth(DEPTH.FURNITURE).setOrigin(0.5);
-    this.add.text(905, 155, "\u95E8\u53E3", labelStyle).setDepth(DEPTH.FURNITURE).setOrigin(0.5);
-
-    // Zone boundary lines (subtle)
-    const graphics = this.add.graphics();
-    graphics.lineStyle(1, 0x27272a, 0.5);
-    graphics.lineBetween(365, 60, 365, 300);
-    graphics.lineBetween(605, 60, 605, 300);
-    graphics.lineBetween(855, 60, 855, 300);
-    graphics.setDepth(DEPTH.FURNITURE);
 
     // Create idle animations for each character variant
     for (let i = 1; i <= CHARACTER_VARIANTS; i++) {
