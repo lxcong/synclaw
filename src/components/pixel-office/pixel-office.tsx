@@ -90,7 +90,7 @@ const PixelOffice = forwardRef<PixelOfficeHandle, Props>(function PixelOffice(
       className="w-full rounded-lg overflow-hidden border"
       style={{
         borderColor: "var(--border)",
-        maxHeight: "320px",
+        maxHeight: "384px",
         aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}`,
       }}
     />
