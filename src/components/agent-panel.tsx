@@ -113,10 +113,9 @@ export function AgentPanel({ onClose }: Props) {
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {/* Pixel Office with glow */}
         <div
-          className="rounded-xl overflow-hidden ring-1"
+          className="rounded-xl overflow-hidden ring-1 ring-indigo-500/20"
           style={{
             boxShadow: "0 0 20px rgba(99, 102, 241, 0.08)",
-            ringColor: "rgba(99, 102, 241, 0.2)",
           }}
         >
           <PixelOffice

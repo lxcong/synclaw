@@ -94,6 +94,12 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
     setInspectedTask(task);
   }
 
+  async function handleDeleteTask(taskId: string) {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    if (inspectedTask?.id === taskId) setInspectedTask(null);
+    await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+  }
+
   const handleTaskUpdate = useCallback((updatedTask: Task) => {
     setTasks((prev) =>
       prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
@@ -128,6 +134,7 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
                   status={status}
                   tasks={tasks.filter((t) => t.status === status)}
                   onTaskClick={handleTaskClick}
+                  onTaskDelete={handleDeleteTask}
                 />
               ))}
             </div>

@@ -8,9 +8,10 @@ import { STATUS_CONFIG } from "@/types";
 interface Props {
   task: Task;
   onClick: () => void;
+  onDelete?: (taskId: string) => void;
 }
 
-export function TaskCard({ task, onClick }: Props) {
+export function TaskCard({ task, onClick, onDelete }: Props) {
   const config = STATUS_CONFIG[task.status];
   const {
     attributes,
@@ -36,8 +37,22 @@ export function TaskCard({ task, onClick }: Props) {
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className="p-3 rounded-lg border transition-all duration-200 cursor-pointer hover:border-[var(--border-hover)] hover:shadow-sm hover:shadow-black/20"
+      className="group relative p-3 rounded-lg border transition-all duration-200 cursor-pointer hover:border-[var(--border-hover)] hover:shadow-sm hover:shadow-black/20"
     >
+      {onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(task.id);
+          }}
+          className="absolute top-1.5 right-1.5 w-5 h-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--background)]"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" />
+          </svg>
+        </button>
+      )}
+
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-medium leading-snug">{task.title}</h3>
         {config.animate && (
