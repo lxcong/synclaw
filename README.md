@@ -53,14 +53,26 @@ Browser (Next.js App Router)
 - **Drag & Drop**: @dnd-kit
 - **Testing**: Playwright (E2E)
 
-## Getting Started
+## Installation
 
-### Prerequisites
+### Option 1: Via OpenClaw Agent (Recommended)
+
+If you already have [OpenClaw](https://github.com/openclaw/openclaw) running, tell the agent:
+
+```
+学习skill: npx skills add lxcong/synclaw
+```
+
+The agent will install and configure SyncClaw automatically.
+
+### Option 2: Manual Setup
+
+#### Prerequisites
 
 - Node.js 20+
-- An [OpenClaw Gateway](https://github.com/nicepkg/openclaw) instance (for agent execution)
+- An [OpenClaw Gateway](https://github.com/openclaw/openclaw) instance (for agent execution)
 
-### Setup
+#### Clone and Install
 
 ```bash
 git clone https://github.com/lxcong/synclaw.git
@@ -75,7 +87,20 @@ npm run db:generate
 npm run db:push
 npm run db:seed      # Optional: populate sample data
 
-npm run dev
+npm run build
+```
+
+#### Install CLI
+
+```bash
+npm install -g synclaw
+```
+
+#### Start
+
+```bash
+synclaw start           # Production mode (requires npm run build first)
+synclaw start --dev     # Development mode
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -88,12 +113,29 @@ Open [http://localhost:3000](http://localhost:3000).
 | `OPENCLAW_GATEWAY_URL` | OpenClaw Gateway WebSocket endpoint | `ws://localhost:18789` |
 | `OPENCLAW_GATEWAY_TOKEN` | Gateway authentication token | — |
 
+## CLI
+
+Install the CLI globally to manage the SyncClaw service:
+
+```bash
+npm install -g synclaw
+```
+
+Run all commands from the project directory:
+
+```bash
+synclaw start [-p port] [-H host] [-d]   # Start server (background)
+synclaw stop [-t timeout]                 # Graceful stop (SIGTERM → SIGKILL)
+synclaw restart                           # Stop then start
+synclaw status                            # PID, uptime, port, Gateway status
+synclaw logs [-f] [-n lines]              # View / follow logs
+```
+
 ### Scripts
 
 ```bash
 npm run dev          # Start dev server (Turbopack)
 npm run build        # Production build
-npm run start        # Run production server
 npm run lint         # ESLint
 npm run db:studio    # Prisma Studio GUI
 ```
