@@ -1,0 +1,37 @@
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Runtime data
+.data/
+synclaw.log
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+.next/
+out/
+build/
+
+# Dev tooling
+.claude/
+node_modules/
+.git/
+.vercel/
+
+# Tests
+tests/
+*.test.*
+*.spec.*
+playwright.config.*
+playwright-report/
+test-results/
+
+# Misc
+.DS_Store
+*.pem
+npm-debug.log*

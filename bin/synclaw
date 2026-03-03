@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+const path = require("path");
+const { execFileSync } = require("child_process");
+
+const pkgRoot = path.resolve(__dirname, "..");
+const tsxCli = require.resolve("tsx/cli", { paths: [pkgRoot] });
+const entry = path.join(pkgRoot, "cli", "index.ts");
+
+try {
+  execFileSync(process.execPath, [tsxCli, entry, ...process.argv.slice(2)], {
+    stdio: "inherit",
+    cwd: process.cwd(),
+  });
+} catch (e) {
+  process.exit(e.status || 1);
+}
