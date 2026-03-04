@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, usePathname } from "next/navigation";
 import type { Workspace } from "@/types";
 import { cn } from "@/lib/utils";
 import { CreateWorkspaceDialog } from "./create-workspace-dialog";
@@ -11,7 +11,9 @@ export function Sidebar() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const router = useRouter();
   const params = useParams();
+  const pathname = usePathname();
   const activeId = params?.id as string | undefined;
+  const isAgentsPage = pathname === "/agents";
 
   useEffect(() => {
     fetch("/api/workspaces")
@@ -74,21 +76,28 @@ export function Sidebar() {
           <span>+</span>
           <span>新建工作区</span>
         </button>
-      </nav>
 
-      <div className="p-3 border-t" style={{ borderColor: "var(--border)" }}>
+        <div
+          className="px-2 py-1.5 mt-4 text-xs font-medium uppercase tracking-wider"
+          style={{ color: "var(--muted)" }}
+        >
+          智能体
+        </div>
         <button
           onClick={() => router.push("/agents")}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 cursor-pointer"
+          className={cn(
+            "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 cursor-pointer"
+          )}
           style={{
-            color: "var(--muted-foreground)",
-            background: "var(--card)",
+            background: isAgentsPage ? "var(--card)" : "transparent",
+            color: isAgentsPage ? "var(--foreground)" : "var(--muted-foreground)",
+            borderLeft: isAgentsPage ? "2px solid var(--primary)" : "2px solid transparent",
           }}
         >
           <span>🤖</span>
-          <span className="font-medium">Agent 中心</span>
+          <span>Agent 中心</span>
         </button>
-      </div>
+      </nav>
 
       <CreateWorkspaceDialog
         open={dialogOpen}
