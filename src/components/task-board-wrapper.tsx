@@ -18,7 +18,6 @@ import { KanbanColumn } from "./kanban-column";
 import { TaskCard } from "./task-card";
 import { CreateTaskDialog } from "./create-task-dialog";
 import { TaskInspector } from "./task-inspector";
-import { AgentPanel } from "./agent-panel";
 
 interface Props {
   workspaceId: string;
@@ -30,7 +29,6 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [inspectedTask, setInspectedTask] = useState<Task | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [agentPanelOpen, setAgentPanelOpen] = useState(true);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -111,14 +109,11 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
       <TopBar
         title={workspaceName}
         onNewTask={() => setCreateDialogOpen(true)}
-        agentPanelOpen={agentPanelOpen}
-        onToggleAgentPanel={() => setAgentPanelOpen((v) => !v)}
       />
 
       <div className="flex-1 flex overflow-hidden p-3 gap-3">
-        {/* Kanban Area */}
         <div
-          className={`${agentPanelOpen ? "w-1/2" : "flex-1"} flex flex-col rounded-xl overflow-hidden transition-all duration-300`}
+          className="flex-1 flex flex-col rounded-xl overflow-hidden"
           style={{ background: "var(--kanban-bg)" }}
         >
           <DndContext
@@ -144,11 +139,6 @@ export function TaskBoardWrapper({ workspaceId, workspaceName }: Props) {
             </DragOverlay>
           </DndContext>
         </div>
-
-        {/* Agent Panel */}
-        {agentPanelOpen && (
-          <AgentPanel onClose={() => setAgentPanelOpen(false)} />
-        )}
       </div>
 
       <TaskInspector
