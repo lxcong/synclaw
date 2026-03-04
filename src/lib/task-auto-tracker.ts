@@ -30,6 +30,21 @@ function parseTaskIdFromSessionKey(sessionKey: string | undefined): string | nul
   return match ? match[1] : null;
 }
 
+/**
+ * Check if a sessionKey belongs to a cron job run.
+ * Cron session keys follow the pattern "agent:{agentId}:cron:{jobId}..."
+ * (mirrors isCronSessionKey from OpenClaw's session-key-utils.ts)
+ */
+function isCronSessionKey(sessionKey: string | undefined): boolean {
+  if (!sessionKey) return false;
+  const match = sessionKey.match(/^agent:[^:]+:(.+)$/i);
+  if (!match) return false;
+  return match[1].toLowerCase().startsWith("cron:");
+}
+
+/** Run IDs already identified as cron/heartbeat — skip without DB lookup. */
+const ignoredRunIds = new Set<string>();
+
 let cachedDefaultWorkspaceId: string | null = null;
 
 async function getDefaultWorkspaceId(): Promise<string> {
@@ -186,6 +201,14 @@ function deriveTitle(text: string, agentName: string, maxLen = 50): string {
 export async function handleGlobalAgentEvent(event: AgentEvent): Promise<void> {
   const { runId } = event;
   if (!runId) return;
+
+  // Skip runs produced by cron jobs or heartbeat-triggered cron events.
+  // These have session keys like "agent:{agentId}:cron:{jobId}:run:{runId}".
+  if (ignoredRunIds.has(runId)) return;
+  if (isCronSessionKey(event.sessionKey)) {
+    ignoredRunIds.add(runId);
+    return;
+  }
 
   const taskId = await ensureTaskForRun(runId, event);
   if (!taskId) return;
