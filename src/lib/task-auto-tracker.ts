@@ -31,15 +31,20 @@ function parseTaskIdFromSessionKey(sessionKey: string | undefined): string | nul
 }
 
 /**
- * Check if a sessionKey belongs to a cron job run.
- * Cron session keys follow the pattern "agent:{agentId}:cron:{jobId}..."
- * (mirrors isCronSessionKey from OpenClaw's session-key-utils.ts)
+ * Check if a sessionKey belongs to a cron job or heartbeat run.
+ * - Cron:      "agent:{agentId}:cron:{jobId}..."
+ * - Heartbeat: "agent:{agentId}:main" (agent's main session, default heartbeat target)
  */
-function isCronSessionKey(sessionKey: string | undefined): boolean {
+function isAutomatedSessionKey(sessionKey: string | undefined): boolean {
   if (!sessionKey) return false;
   const match = sessionKey.match(/^agent:[^:]+:(.+)$/i);
   if (!match) return false;
-  return match[1].toLowerCase().startsWith("cron:");
+  const rest = match[1].toLowerCase();
+  // Cron job runs
+  if (rest.startsWith("cron:")) return true;
+  // Heartbeat runs on the agent's main session
+  if (rest === "main") return true;
+  return false;
 }
 
 /** Run IDs already identified as cron/heartbeat — skip without DB lookup. */
@@ -202,10 +207,11 @@ export async function handleGlobalAgentEvent(event: AgentEvent): Promise<void> {
   const { runId } = event;
   if (!runId) return;
 
-  // Skip runs produced by cron jobs or heartbeat-triggered cron events.
-  // These have session keys like "agent:{agentId}:cron:{jobId}:run:{runId}".
+  // Skip automated runs (cron jobs, heartbeat).
+  // Cron: "agent:{agentId}:cron:{jobId}:run:{runId}"
+  // Heartbeat: "agent:{agentId}:main"
   if (ignoredRunIds.has(runId)) return;
-  if (isCronSessionKey(event.sessionKey)) {
+  if (isAutomatedSessionKey(event.sessionKey)) {
     ignoredRunIds.add(runId);
     return;
   }
